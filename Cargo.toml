@@ -1,0 +1,49 @@
+[package]
+name = "hoyoverse-api"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+
+[dependencies]
+# Async Runtime
+tokio = { version = "1.38", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"
+
+# Web Framework and HTTP
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.6.1", features = ["trace", "cors", "compression-br", "compression-deflate", "compression-gzip", "compression-zstd"] }
+tower = "0.5.0"
+hyper = { version = "1", features = ["full"] }
+http-body = "1.0"
+
+# Database
+mongodb = { version = "3.0", features = ["snappy-compression", "zlib-compression", "zstd-compression"] }
+bson = { version = "2.11", features = ["chrono-0_4"] }
+fred = { version = "9.2.1", features = ["enable-rustls", "metrics", "sentinel-client", "replicas", "i-scripts"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP Client
+reqwest = { version = "0.12.8", features = ["json", "rustls-tls", "cookies"], default-features = false }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Time and Date
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging and Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
+time = { version = "0.3", features = ["formatting"] }
+
+# Configuration
+config = { version = "0.14", features = ["yaml"] }
+
+# Utilities
+async-trait = "0.1.80"
+bytes = "1.7.1"

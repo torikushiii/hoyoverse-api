@@ -1,0 +1,22 @@
+server:
+  host: "127.0.0.1"
+  port: 8080
+  cors_origins: ["*"]
+
+redis:
+  url: "redis://127.0.0.1:6379"
+  pool_size: 5
+  database: 1
+  rate_limit:
+    max_requests: 10
+    window_seconds: 60
+    punishment_threshold: 5
+    punishment_duration: 60
+
+mongodb:
+  url: "mongodb://127.0.0.1:27017"
+  database: "hoyoverse"
+
+logging:
+  level: "debug"
+  format: "pretty" 
