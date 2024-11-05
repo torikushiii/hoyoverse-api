@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::Router;
 use tower_http::cors::CorsLayer;
+use tracing::error;
 use tracing_subscriber::{
     layer::SubscriberExt,
     util::SubscriberInitExt,
@@ -13,10 +14,12 @@ mod routes;
 mod config;
 mod db;
 mod ratelimit;
+mod scheduler;
 
 use config::Settings;
 use db::DatabaseConnections;
 use ratelimit::RateLimiter;
+use scheduler::Scheduler;
 
 use hoyoverse_api::*;
 
@@ -34,15 +37,28 @@ async fn main() -> anyhow::Result<()> {
         .with_ansi(config.logging.format == "pretty")
         .compact();
 
+    let filter = tracing_subscriber::EnvFilter::new(
+        std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| config.logging.level.clone())
+    )
+    .add_directive("html5ever=warn".parse().unwrap())
+    .add_directive("selectors=warn".parse().unwrap())
+    .add_directive("scraper=warn".parse().unwrap());
+
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| config.logging.level.clone()),
-        ))
+        .with(filter)
         .with(fmt_layer)
         .init();
 
     let db = DatabaseConnections::new(&config).await?;
     let db = Arc::new(db);
+
+    let scheduler = Scheduler::new(db.clone());
+    if let Err(e) = scheduler.start().await {
+        error!("Failed to start scheduler: {}", e);
+        // Exit with error code since scheduler is a critical component
+        std::process::exit(1);
+    }
 
     let rate_limiter = Arc::new(RateLimiter::new(Arc::new(db.redis.clone())).await?);
 

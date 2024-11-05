@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State, ConnectInfo},
     http::StatusCode,
 };
-use crate::types::{GameCode, CodesResponse, NewsItem, CodeStatus};
+use crate::types::{CodesResponse, NewsItem, GameCode};
 use crate::routes::AppState;
 use mongodb::bson;
 use futures_util::TryStreamExt;
@@ -56,12 +56,15 @@ async fn codes(
     let mut active = Vec::new();
     let mut inactive = Vec::new();
 
-    if let Ok(mut cursor) = collection.find(bson::doc! {}).await {
+    if let Ok(mut cursor) = collection.find(bson::doc! { "active": true }).await {
         while let Ok(Some(code)) = cursor.try_next().await {
-            match code.status {
-                CodeStatus::Active => active.push(code),
-                CodeStatus::Inactive => inactive.push(code),
-            }
+            active.push(code);
+        }
+    }
+
+    if let Ok(mut cursor) = collection.find(bson::doc! { "active": false }).await {
+        while let Ok(Some(code)) = cursor.try_next().await {
+            inactive.push(code);
         }
     }
 
@@ -112,6 +115,12 @@ async fn news(
         Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
         Err(_) => Vec::new(),
     };
+
+    if let Ok(json) = serde_json::to_string(&news) {
+        if let Err(e) = db.redis.set_cached(&cache_key, &json, 900).await {
+            error!("Failed to cache {} news: {}", category, e);
+        }
+    }
 
     Ok(Json(news))
 } 

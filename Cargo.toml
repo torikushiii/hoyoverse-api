@@ -47,3 +47,12 @@ config = { version = "0.14", features = ["yaml"] }
 # Utilities
 async-trait = "0.1.80"
 bytes = "1.7.1"
+
+# HTML Parsing
+scraper = "0.21"
+
+# Cron Scheduler
+tokio-cron-scheduler = "0.13"
+
+[dev-dependencies]
+tracing-test = "0.2"

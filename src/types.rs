@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -13,8 +14,9 @@ pub struct GameCode {
     pub code: String,
     #[serde(default)]
     pub rewards: Vec<String>,
-    #[serde(default)]
-    pub status: CodeStatus,
+    pub source: String,
+    pub date: DateTime<Utc>,
+    pub active: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
