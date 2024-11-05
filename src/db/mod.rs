@@ -21,13 +21,13 @@ impl DatabaseConnections {
         Ok(Self { mongo, redis })
     }
 
-    pub async fn get_cached_data(&self, collection: &str, key: &str) -> anyhow::Result<Option<String>> {
-        if let Some(data) = self.redis.get_cached(key).await? {
+    pub async fn get_cached_data(&self, collection: String, key: String) -> anyhow::Result<Option<String>> {
+        if let Some(data) = self.redis.get_cached(&key).await? {
             return Ok(Some(data));
         }
 
-        if let Some(data) = self.mongo.get_document(collection, key).await? {
-            self.redis.set_cached(key, &data, 300).await?;
+        if let Some(data) = self.mongo.get_document(&collection, &key).await? {
+            self.redis.set_cached(&key, &data, 300).await?;
             return Ok(Some(data));
         }
 

@@ -18,6 +18,8 @@ use config::Settings;
 use db::DatabaseConnections;
 use ratelimit::RateLimiter;
 
+use hoyoverse_api::*;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = Settings::new().expect("Failed to load configuration");
