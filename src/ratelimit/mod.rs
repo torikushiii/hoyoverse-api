@@ -110,8 +110,19 @@ impl RateLimiter {
         ip: IpAddr,
         config: &crate::config::RateLimitConfig,
     ) -> Result<RateLimitResponse> {
-        let redis_key = format!("ratelimit:{}:{}", ip, resource);
-        debug!("Checking rate limit for IP {} on resource {}", ip, resource);
+        let normalized_ip = match ip {
+            IpAddr::V6(ipv6) => {
+                if let Some(ipv4) = ipv6.to_ipv4_mapped() {
+                    IpAddr::V4(ipv4)
+                } else {
+                    IpAddr::V6(ipv6)
+                }
+            }
+            IpAddr::V4(_) => ip,
+        };
+
+        let redis_key = format!("ratelimit:{}:{}", normalized_ip, resource);
+        debug!("Checking rate limit for IP {} on resource {}", normalized_ip, resource);
 
         self.check_rate_limit(
             redis_key,
