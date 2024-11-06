@@ -1,7 +1,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::Router;
-use tower_http::cors::CorsLayer;
+use tower_http::{
+    cors::CorsLayer,
+    compression::{CompressionLayer, CompressionLevel}
+};
 use tracing::error;
 use tracing_subscriber::{
     layer::SubscriberExt,
@@ -75,9 +78,17 @@ async fn main() -> anyhow::Result<()> {
         )
     };
 
+    let compression_layer = CompressionLayer::new()
+        .br(true)
+        .gzip(true)
+        .deflate(true)
+        .zstd(true)
+        .quality(CompressionLevel::Default);
+
     let app = Router::new()
         .nest("/mihoyo", routes::mihoyo_routes())
         .layer(cors)
+        .layer(compression_layer)
         .with_state((db, rate_limiter));
 
     let addr = SocketAddr::new(
