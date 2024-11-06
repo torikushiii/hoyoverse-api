@@ -42,11 +42,12 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
 
             if !code.is_empty() {
                 codes.push(GameCode {
-                    code,
-                    rewards,
-                    source: "eurogamer".to_string(),
-                    date: current_time,
+                    id: None,
+                    code: code.to_string(),
                     active: true,
+                    date: current_time.into(),
+                    rewards: rewards.clone(),
+                    source: "eurogamer".to_string(),
                 });
             }
         }
@@ -70,11 +71,12 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
                 2 => {
                     if !current_code.is_empty() {
                         codes.push(GameCode {
+                            id: None,
                             code: current_code.clone(),
+                            active: true,
+                            date: current_time.into(),
                             rewards: current_rewards.clone(),
                             source: "eurogamer".to_string(),
-                            date: current_time,
-                            active: true,
                         });
                     }
                 },

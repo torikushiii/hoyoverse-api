@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State, ConnectInfo},
     http::StatusCode,
 };
-use crate::types::{CodesResponse, NewsItem, GameCode};
+use crate::types::{CodesResponse, NewsItem, GameCode, GameCodeResponse};
 use crate::routes::AppState;
 use mongodb::bson;
 use futures_util::TryStreamExt;
@@ -53,26 +53,43 @@ async fn codes(
 
     let collection = db.mongo.collection::<GameCode>("starrail_codes");
     
+    let active_filter = bson::doc! { "active": true };
     let mut active = Vec::new();
+    match collection.find(active_filter).await {
+        Ok(mut cursor) => {
+            while let Ok(Some(code)) = cursor.try_next().await {
+                active.push(GameCodeResponse::from(code));
+            }
+        }
+        Err(e) => {
+            error!("Failed to query active codes: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    let inactive_filter = bson::doc! { "active": false };
     let mut inactive = Vec::new();
-
-    if let Ok(mut cursor) = collection.find(bson::doc! { "active": true }).await {
-        while let Ok(Some(code)) = cursor.try_next().await {
-            active.push(code);
+    match collection.find(inactive_filter).await {
+        Ok(mut cursor) => {
+            while let Ok(Some(code)) = cursor.try_next().await {
+                inactive.push(GameCodeResponse::from(code));
+            }
+        }
+        Err(e) => {
+            error!("Failed to query inactive codes: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
 
-    if let Ok(mut cursor) = collection.find(bson::doc! { "active": false }).await {
-        while let Ok(Some(code)) = cursor.try_next().await {
-            inactive.push(code);
-        }
-    }
-
+    let has_codes = !active.is_empty() || !inactive.is_empty();
     let response = CodesResponse { active, inactive };
 
-    if let Ok(json) = serde_json::to_string(&response) {
-        if let Err(e) = db.redis.set_cached("starrail_codes", &json, 300).await {
-            error!("Failed to cache codes: {}", e);
+    // Only try to cache if we found codes
+    if has_codes {
+        if let Ok(json) = serde_json::to_string(&response) {
+            if let Err(e) = db.redis.set_cached("starrail_codes", &json, 300).await {
+                error!("Failed to cache codes: {}", e);
+            }
         }
     }
 

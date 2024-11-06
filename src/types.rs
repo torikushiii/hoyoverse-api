@@ -1,28 +1,29 @@
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
+use mongodb::bson::{DateTime, oid::ObjectId};
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum CodeStatus {
-    #[default]
-    Active,
-    Inactive,
-}
-
+// Internal model for database
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameCode {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
     pub code: String,
-    #[serde(default)]
+    pub active: bool,
+    pub date: DateTime,
     pub rewards: Vec<String>,
     pub source: String,
-    pub date: DateTime<Utc>,
-    pub active: bool,
+}
+
+// API response model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GameCodeResponse {
+    pub code: String,
+    pub rewards: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CodesResponse {
-    pub active: Vec<GameCode>,
-    pub inactive: Vec<GameCode>,
+    pub active: Vec<GameCodeResponse>,
+    pub inactive: Vec<GameCodeResponse>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,4 +37,13 @@ pub struct NewsItem {
     #[serde(rename = "type")]
     pub r#type: String,
     pub lang: String,
+}
+
+impl From<GameCode> for GameCodeResponse {
+    fn from(code: GameCode) -> Self {
+        Self {
+            code: code.code,
+            rewards: code.rewards,
+        }
+    }
 } 

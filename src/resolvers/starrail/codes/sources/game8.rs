@@ -73,11 +73,12 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
                         }
 
                         codes.push(GameCode {
-                            code,
-                            rewards,
-                            source: "game8".to_string(),
-                            date: current_time,
+                            id: None,
+                            code: code.to_string(),
                             active: true,
+                            date: current_time.into(),
+                            rewards: rewards.clone(),
+                            source: "game8".to_string(),
                         });
                     }
                 }
