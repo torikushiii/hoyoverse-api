@@ -20,25 +20,27 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
     let mut codes = Vec::new();
     let current_time = Utc::now();
 
-    // Parse list items
+    fn parse_rewards(rewards_str: &str) -> Vec<String> {
+        rewards_str
+            .trim()
+            .split(" and ")
+            .flat_map(|s| {
+                // First split by comma and space ", " to avoid splitting numbers
+                s.split(", ")
+            })
+            .map(|s| s.replace("(new!)", "").trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
     let list_selector = Selector::parse("#content_above > div.page_content > article > div > div > ul:nth-child(14) > li").unwrap();
     for item in document.select(&list_selector) {
         let text = item.text().collect::<String>().trim().to_string();
         if let Some((code, rewards_str)) = text.split_once(':') {
             let code = code.trim().to_string();
-            let rewards: Vec<String> = rewards_str
-                .trim()
-                .split(" and ")
-                .flat_map(|s| {
-                    // Split by comma only if not preceded by a digit or followed by a digit
-                    s.split(|c| c == ',' && !s.chars().take_while(|&x| x != ',').last().unwrap_or(' ').is_ascii_digit())
-                })
-                .map(|s| s.replace("(new!)", "").trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
+            let rewards = parse_rewards(rewards_str);
 
             if !code.is_empty() {
-                debug!("Found code in list on Eurogamer: {} with rewards: {:?}", code, rewards);
                 codes.push(GameCode {
                     code,
                     rewards,
@@ -64,20 +66,9 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
         {
             match count % 3 {
                 0 => current_code = cell.to_string(),
-                1 => {
-                    current_rewards = cell
-                        .split(" and ")
-                        .flat_map(|s| {
-                            // Split by comma only if not preceded by a digit or followed by a digit
-                            s.split(|c| c == ',' && !s.chars().take_while(|&x| x != ',').last().unwrap_or(' ').is_ascii_digit())
-                        })
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                },
+                1 => current_rewards = parse_rewards(cell),
                 2 => {
                     if !current_code.is_empty() {
-                        debug!("Found code in table on Eurogamer: {} with rewards: {:?}", current_code, current_rewards);
                         codes.push(GameCode {
                             code: current_code.clone(),
                             rewards: current_rewards.clone(),
