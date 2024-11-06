@@ -72,7 +72,6 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
                             rewards.push(current_reward.trim().to_string());
                         }
 
-                        debug!("Found code on Game8: {} with rewards: {:?}", code, rewards);
                         codes.push(GameCode {
                             code,
                             rewards,
