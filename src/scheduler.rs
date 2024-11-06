@@ -47,15 +47,10 @@ impl Scheduler {
                                     .with_options(options.clone())
                                     .await;
 
-                                match result {
-                                    Ok(update_result) => {
-                                        if update_result.upserted_id.is_some() {
-                                            info!("Inserted new code: {}", code.code);
-                                        } else if update_result.modified_count > 0 {
-                                            info!("Updated existing code: {}", code.code);
-                                        }
-                                    },
-                                    Err(e) => error!("Failed to upsert code {}: {}", code.code, e),
+                                if let Ok(update_result) = result {
+                                    if update_result.upserted_id.is_some() {
+                                        info!("Inserted new code: {}", code.code);
+                                    }
                                 }
                             }
                         }
@@ -73,6 +68,7 @@ impl Scheduler {
             Box::pin(async move {
                 info!("Running scheduled news fetching");
                 let categories = ["notices", "events", "info"];
+                let mut new_items = 0;
 
                 for category in &categories {
                     match StarRailResolver::fetch_news(category).await {
@@ -85,20 +81,14 @@ impl Scheduler {
                                     let filter = doc! { "id": &news_item.id };
                                     let update = doc! { "$set": &doc };
                                     
-                                    let result = collection
+                                    if let Ok(update_result) = collection
                                         .update_one(filter, update)
                                         .with_options(options.clone())
-                                        .await;
-
-                                    match result {
-                                        Ok(update_result) => {
-                                            if update_result.upserted_id.is_some() {
-                                                info!("Inserted new news item: {}", news_item.id);
-                                            } else if update_result.modified_count > 0 {
-                                                info!("Updated existing news item: {}", news_item.id);
-                                            }
-                                        },
-                                        Err(e) => error!("Failed to upsert news item {}: {}", news_item.id, e),
+                                        .await
+                                    {
+                                        if update_result.upserted_id.is_some() {
+                                            new_items += 1;
+                                        }
                                     }
                                 }
                             }
@@ -107,6 +97,10 @@ impl Scheduler {
                             error!("Failed to fetch {} news: {}", category, e);
                         }
                     }
+                }
+
+                if new_items > 0 {
+                    info!("Inserted {} new news items", new_items);
                 }
             })
         })?).await?;

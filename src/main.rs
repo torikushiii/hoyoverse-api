@@ -46,7 +46,11 @@ async fn main() -> anyhow::Result<()> {
     )
     .add_directive("html5ever=warn".parse().unwrap())
     .add_directive("selectors=warn".parse().unwrap())
-    .add_directive("scraper=warn".parse().unwrap());
+    .add_directive("scraper=warn".parse().unwrap())
+    .add_directive("reqwest=warn".parse().unwrap())
+    .add_directive("h2=warn".parse().unwrap())
+    .add_directive("hyper=warn".parse().unwrap())
+    .add_directive("rustls=warn".parse().unwrap());
 
     tracing_subscriber::registry()
         .with(filter)
