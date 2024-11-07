@@ -21,7 +21,7 @@ impl Scheduler {
     async fn schedule_starrail_tasks(&self, sched: &JobScheduler) -> Result<(), Box<dyn std::error::Error>> {
         // Schedule StarRail code scraping
         let db_clone = self.db.clone();
-        sched.add(Job::new_async("0 */15 * * * *", move |_, _| {
+        sched.add(Job::new_async("0 * * * * *", move |_, _| {
             let db = db_clone.clone();
             Box::pin(async move {
                 info!("[StarRail][Codes] Running scheduled code scraping");
@@ -63,7 +63,7 @@ impl Scheduler {
 
         // Schedule StarRail news fetching
         let db_clone = self.db.clone();
-        sched.add(Job::new_async("0 * * * * *", move |_, _| {
+        sched.add(Job::new_async("0 */15 * * * *", move |_, _| {
             let db = db_clone.clone();
             Box::pin(async move {
                 info!("[StarRail][News] Running scheduled news fetching");
