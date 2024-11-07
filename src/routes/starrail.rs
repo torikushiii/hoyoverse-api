@@ -2,15 +2,17 @@ use axum::{
     Router,
     routing::get,
     response::Json,
-    extract::{Path, State, ConnectInfo},
+    extract::{Path, State, ConnectInfo, Query},
     http::StatusCode,
 };
-use crate::types::{CodesResponse, NewsItem, GameCode, GameCodeResponse};
+use crate::types::{CodesResponse, NewsItem, GameCode, GameCodeResponse, NewsItemResponse};
 use crate::routes::AppState;
 use mongodb::bson;
 use futures_util::TryStreamExt;
 use tracing::{error, debug};
 use std::net::SocketAddr;
+use serde::Deserialize;
+use crate::utils::lang::parse_language_code;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -96,13 +98,20 @@ async fn codes(
     Ok(Json(response))
 }
 
+#[derive(Debug, Deserialize)]
+struct NewsQuery {
+    lang: Option<String>,
+}
+
 #[axum::debug_handler]
 async fn news(
     Path(category): Path<String>,
+    Query(query): Query<NewsQuery>,
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-) -> Result<Json<Vec<NewsItem>>, StatusCode> {
+) -> Result<Json<Vec<NewsItemResponse>>, StatusCode> {
     let (db, rate_limiter) = state;
+    debug!("Handling request for /starrail/news/{} from {}", category, addr.ip());
     
     let rate_limit = rate_limiter
         .check_rate_limit_with_ip(
@@ -111,32 +120,51 @@ async fn news(
             db.redis.get_rate_limit_config(),
         )
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!("Rate limit check failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     if !rate_limit.is_allowed() {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
-    let cache_key = format!("starrail_news_{}", category);
-    let cached_data = db.get_cached_data("starrail_news".to_string(), cache_key.clone()).await;
-    if let Ok(Some(data)) = cached_data {
-        if let Ok(news) = serde_json::from_str::<Vec<NewsItem>>(&data) {
-            return Ok(Json(news));
-        }
-    }
-
     let collection = db.mongo.collection::<NewsItem>("starrail_news");
-    let filter = bson::doc! { "category": &category };
     
-    let news = match collection.find(filter).await {
-        Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
-        Err(_) => Vec::new(),
+    let lang = query.lang
+        .as_deref()
+        .unwrap_or("en");
+    let normalized_lang = parse_language_code(lang);
+    
+    let filter = bson::doc! { 
+        "type": &category,
+        "lang": normalized_lang
+    };
+    debug!("Querying with filter: {:?}", filter);
+    
+    let cursor = match collection.find(filter.clone()).await {
+        Ok(cursor) => cursor,
+        Err(e) => {
+            error!("Failed to query news with filter {:?}: {}", filter, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
-    if let Ok(json) = serde_json::to_string(&news) {
-        if let Err(e) = db.redis.set_cached(&cache_key, &json, 900).await {
-            error!("Failed to cache {} news: {}", category, e);
-        }
+    let mut news = Vec::new();
+    let mut cursor = cursor;
+    while let Ok(Some(doc)) = cursor.try_next().await {
+        news.push(NewsItemResponse::from(doc));
+    }
+
+    if news.is_empty() {
+        debug!(
+            "No news items found for category: {} with language: {}. Filter: {:?}", 
+            category, 
+            normalized_lang,
+            filter
+        );
+    } else {
+        debug!("Successfully found {} news items", news.len());
     }
 
     Ok(Json(news))
