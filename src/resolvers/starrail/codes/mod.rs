@@ -3,16 +3,16 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-use crate::types::GameCode;
+use crate::{types::GameCode, config::Settings};
 use sources::{eurogamer, game8};
 
-pub async fn fetch_all_codes() -> anyhow::Result<Vec<GameCode>> {
+pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let mut codes = Vec::new();
 
     // Fetch from multiple sources concurrently
     let (eurogamer_codes, game8_codes) = tokio::join!(
-        eurogamer::fetch_codes(),
-        game8::fetch_codes(),
+        eurogamer::fetch_codes(config),
+        game8::fetch_codes(config),
     );
 
     // Combine results, ignoring errors from individual sources

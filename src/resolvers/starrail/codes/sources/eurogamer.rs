@@ -1,16 +1,16 @@
-use crate::types::GameCode;
+use crate::{types::GameCode, config::Settings};
 use reqwest::Client;
 use scraper::{Html, Selector};
 use anyhow::Context;
 use tracing::{debug, warn};
 use chrono::Utc;
 
-pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
+pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://www.eurogamer.net/honkai-star-rail-codes-livestream-active-working-how-to-redeem-9321";
     
     let response = client.get(url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .header("User-Agent", &config.server.user_agent)
         .send()
         .await
         .context("Failed to fetch Eurogamer page")?;
@@ -87,9 +87,9 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
     }
 
     if codes.is_empty() {
-        warn!("No codes found on Eurogamer");
+        warn!("[StarRail][Codes][Eurogamer] No codes found");
     } else {
-        debug!("Found {} codes on Eurogamer", codes.len());
+        debug!("[StarRail][Codes][Eurogamer] Found {} codes", codes.len());
     }
 
     Ok(codes)

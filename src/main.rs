@@ -13,18 +13,14 @@ use tracing_subscriber::{
 };
 use hyper::http::HeaderValue;
 
-mod routes;
-mod config;
-mod db;
-mod ratelimit;
-mod scheduler;
-
-use config::Settings;
-use db::DatabaseConnections;
-use ratelimit::RateLimiter;
-use scheduler::Scheduler;
-
-use hoyoverse_api::*;
+use hoyoverse_api::{
+    config::Settings,
+    db::DatabaseConnections,
+    ratelimit::RateLimiter,
+    crons::Scheduler,
+    services::code_validator::CodeValidationService,
+    routes,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -59,13 +55,21 @@ async fn main() -> anyhow::Result<()> {
 
     let db = DatabaseConnections::new(&config).await?;
     let db = Arc::new(db);
+    let config = Arc::new(config);
 
-    let scheduler = Scheduler::new(db.clone());
+    let scheduler = Scheduler::new(db.clone(), config.clone());
     if let Err(e) = scheduler.start().await {
         error!("Failed to start scheduler: {}", e);
-        // Exit with error code since scheduler is a critical component
         std::process::exit(1);
     }
+
+    let validator = CodeValidationService::new(db.clone(), config.clone());
+    tokio::spawn(async move {
+        if let Err(e) = validator.start().await {
+            error!("Failed to start code validation service: {}", e);
+            std::process::exit(1);
+        }
+    });
 
     let rate_limiter = Arc::new(RateLimiter::new(Arc::new(db.redis.clone())).await?);
 

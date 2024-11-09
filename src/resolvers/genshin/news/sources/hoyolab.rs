@@ -41,21 +41,20 @@ impl NewsResolver {
     pub async fn fetch_news(&self, lang: &str) -> anyhow::Result<Vec<NewsItem>> {
         let mut all_news = Vec::new();
         
-        // Fetch events
         match self.fetch_api::<EventList>(
             "https://bbs-api-os.hoyolab.com/community/community_contribution/wapi/event/list",
             &[
                 ("page_size", "15"),
                 ("size", "15"),
-                ("gids", "6"),
+                ("gids", "2"),
             ],
             lang
         ).await {
             Ok(events) => {
-                debug!("[StarRail] Fetched {} events for language {}", events.list.len(), lang);
+                debug!("[Genshin] Fetched {} events for language {}", events.list.len(), lang);
                 for item in events.list {
                     if item.id.is_empty() || item.name.is_empty() {
-                        error!("[StarRail] Skipping event with empty id or name for lang {}", lang);
+                        error!("[Genshin] Skipping event with empty id or name for lang {}", lang);
                         continue;
                     }
 
@@ -74,26 +73,25 @@ impl NewsResolver {
                 }
             }
             Err(e) => {
-                error!("[StarRail] Failed to fetch events for language {}: {}", lang, e);
+                error!("[Genshin] Failed to fetch events for language {}: {}", lang, e);
             }
         }
 
-        // Fetch notices and info
         for (type_id, type_name) in [(1, "notice"), (3, "info")] {
             match self.fetch_api::<NewsList>(
                 "https://bbs-api-os.hoyolab.com/community/post/wapi/getNewsList",
                 &[
-                    ("gids", "6"),
+                    ("gids", "2"),
                     ("page_size", "15"),
                     ("type", &type_id.to_string()),
                 ],
                 lang
             ).await {
                 Ok(news) => {
-                    debug!("[StarRail] Fetched {} {} for language {}", news.list.len(), type_name, lang);
+                    debug!("[Genshin] Fetched {} {} for language {}", news.list.len(), type_name, lang);
                     for item in news.list {
                         if item.post.post_id.is_empty() || item.post.subject.is_empty() {
-                            error!("[StarRail] Skipping {} with empty id or subject for lang {}", type_name, lang);
+                            error!("[Genshin] Skipping {} with empty id or subject for lang {}", type_name, lang);
                             continue;
                         }
 
@@ -116,12 +114,12 @@ impl NewsResolver {
                     }
                 }
                 Err(e) => {
-                    error!("[StarRail] Failed to fetch {} for language {}: {}", type_name, lang, e);
+                    error!("[Genshin] Failed to fetch {} for language {}: {}", type_name, lang, e);
                 }
             }
         }
 
-        debug!("[StarRail] Total news items fetched for {}: {}", lang, all_news.len());
+        debug!("[Genshin] Total news items fetched for {}: {}", lang, all_news.len());
         Ok(all_news)
     }
 }
@@ -133,7 +131,7 @@ pub async fn fetch_news(config: &Settings, _category: &str) -> anyhow::Result<Ve
     for lang in SUPPORTED_LANGUAGES {
         match resolver.fetch_news(lang).await {
             Ok(mut news) => all_news.append(&mut news),
-            Err(e) => error!("[StarRail] Failed to fetch news for language {}: {}", lang, e),
+            Err(e) => error!("[Genshin] Failed to fetch news for language {}: {}", lang, e),
         }
     }
 

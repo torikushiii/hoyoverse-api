@@ -3,6 +3,7 @@ name = "hoyoverse-api"
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0"
+default-run = "hoyoverse-api"
 
 [dependencies]
 # Async Runtime
@@ -47,6 +48,7 @@ config = { version = "0.14", features = ["yaml"] }
 # Utilities
 async-trait = "0.1.80"
 bytes = "1.7.1"
+regex = "1.10.6"
 
 # HTML Parsing
 scraper = "0.21"
@@ -56,3 +58,11 @@ tokio-cron-scheduler = "0.13"
 
 [dev-dependencies]
 tracing-test = "0.2"
+
+[[bin]]
+name = "hoyoverse-api"
+path = "src/main.rs"
+
+[[bin]]
+name = "validate-codes"
+path = "scripts/validate_codes.rs"

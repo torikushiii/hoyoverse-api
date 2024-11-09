@@ -1,16 +1,16 @@
-use crate::types::GameCode;
+use crate::{types::GameCode, config::Settings};
 use reqwest::Client;
 use scraper::{Html, Selector};
 use anyhow::Context;
 use tracing::{debug, warn};
 use chrono::Utc;
 
-pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
+pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Honkai-Star-Rail/archives/410296";
     
     let response = client.get(url)
-    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .header("User-Agent", &config.server.user_agent)
         .send()
         .await
         .context("Failed to fetch Game8 page")?;
@@ -88,9 +88,9 @@ pub async fn fetch_codes() -> anyhow::Result<Vec<GameCode>> {
     }
 
     if codes.is_empty() {
-        warn!("No codes found on Game8");
+        warn!("[StarRail][Codes][Game8] No codes found");
     } else {
-        debug!("Found {} codes on Game8", codes.len());
+        debug!("[StarRail][Codes][Game8] Found {} codes", codes.len());
     }
 
     Ok(codes)

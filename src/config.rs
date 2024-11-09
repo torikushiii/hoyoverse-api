@@ -7,6 +7,7 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub cors_origins: Vec<String>,
+    pub user_agent: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,12 +38,29 @@ pub struct LoggingConfig {
     pub format: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct GameAccount {
+    pub cookie_token_v2: String,
+    pub account_mid_v2: String,
+    pub account_id_v2: String,
+    pub uid: String,
+    pub nickname: String,
+    pub region: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GameAccounts {
+    pub starrail: Vec<GameAccount>,
+    pub genshin: Vec<GameAccount>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub server: ServerConfig,
     pub redis: RedisConfig,
     pub mongodb: MongoConfig,
     pub logging: LoggingConfig,
+    pub game_accounts: GameAccounts,
 }
 
 impl Settings {

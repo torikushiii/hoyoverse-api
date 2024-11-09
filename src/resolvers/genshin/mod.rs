@@ -1,14 +1,11 @@
+use crate::{types::{GameCode, NewsItem}, config::Settings};
+
 pub mod codes;
 pub mod news;
 
-use crate::{
-    types::{GameCode, NewsItem},
-    config::Settings,
-};
+pub struct GenshinResolver;
 
-pub struct StarRailResolver;
-
-impl StarRailResolver {
+impl GenshinResolver {
     pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
         codes::fetch_codes(config).await
     }
