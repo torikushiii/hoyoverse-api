@@ -8,3 +8,5 @@ Cargo.lock
 /config/prod.yaml
 
 dev.sh
+prod.sh
+build.sh
