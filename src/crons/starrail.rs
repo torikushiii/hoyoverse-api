@@ -83,77 +83,92 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
         let db = db.clone();
         let config = config.clone();
         Box::pin(async move {
-            info!("[StarRail][News] Running scheduled news fetching");
-            let mut total_items = 0;
-            let mut new_items = 0;
-            let mut failed_items = 0;
+            let mutex = match db.redis.create_mutex().await {
+                Ok(mutex) => mutex,
+                Err(e) => {
+                    error!("[StarRail][News] Failed to create mutex: {}", e);
+                    return;
+                }
+            };
+            
+            if let Err(e) = mutex.acquire(
+                "starrail_news_fetch".to_string(),
+                || async {
+                    info!("[StarRail][News] Running scheduled news fetching");
+                    let mut total_items = 0;
+                    let mut new_items = 0;
+                    let mut failed_items = 0;
 
-            let resolver = StarRailNewsResolver::new(&config);
-            for lang in STARRAIL_LANGUAGES {
-                match resolver.fetch_news(lang).await {
-                    Ok(news_items) => {
-                        total_items += news_items.len();
-                        let collection = db.mongo.collection::<Document>("starrail_news");
-                        let options = UpdateOptions::builder().upsert(true).build();
+                    let resolver = StarRailNewsResolver::new(&config);
+                    for lang in STARRAIL_LANGUAGES {
+                        match resolver.fetch_news(lang).await {
+                            Ok(news_items) => {
+                                total_items += news_items.len();
+                                let collection = db.mongo.collection::<Document>("starrail_news");
+                                let options = UpdateOptions::builder().upsert(true).build();
 
-                        for news_item in news_items {
-                            match bson::to_document(&news_item) {
-                                Ok(doc) => {
-                                    let filter = doc! { 
-                                        "external_id": &news_item.external_id,
-                                        "lang": &news_item.lang 
-                                    };
-                                    let update = doc! { "$set": &doc };
-                                    
-                                    match collection
-                                        .update_one(filter, update)
-                                        .with_options(options.clone())
-                                        .await 
-                                    {
-                                        Ok(update_result) => {
-                                            if update_result.upserted_id.is_some() {
-                                                new_items += 1;
-                                                info!(
-                                                    "[StarRail][News] Inserted new item: {} ({}) [{}]", 
-                                                    news_item.title, 
-                                                    news_item.news_type,
-                                                    news_item.lang
-                                                );
+                                for news_item in news_items {
+                                    match bson::to_document(&news_item) {
+                                        Ok(doc) => {
+                                            let filter = doc! { 
+                                                "external_id": &news_item.external_id,
+                                                "lang": &news_item.lang 
+                                            };
+                                            let update = doc! { "$set": &doc };
+                                            
+                                            match collection
+                                                .update_one(filter, update)
+                                                .with_options(options.clone())
+                                                .await 
+                                            {
+                                                Ok(update_result) => {
+                                                    if update_result.upserted_id.is_some() {
+                                                        new_items += 1;
+                                                        info!(
+                                                            "[StarRail][News] Inserted new item: {} ({}) [{}]", 
+                                                            news_item.title, 
+                                                            news_item.news_type,
+                                                            news_item.lang
+                                                        );
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    failed_items += 1;
+                                                    error!(
+                                                        "[StarRail][News] Failed to update item {}: {}", 
+                                                        news_item.external_id, 
+                                                        e
+                                                    );
+                                                }
                                             }
                                         }
                                         Err(e) => {
                                             failed_items += 1;
                                             error!(
-                                                "[StarRail][News] Failed to update item {}: {}", 
+                                                "[StarRail][News] Failed to serialize item {}: {}", 
                                                 news_item.external_id, 
                                                 e
                                             );
                                         }
                                     }
                                 }
-                                Err(e) => {
-                                    failed_items += 1;
-                                    error!(
-                                        "[StarRail][News] Failed to serialize item {}: {}", 
-                                        news_item.external_id, 
-                                        e
-                                    );
-                                }
+                            }
+                            Err(e) => {
+                                error!("[StarRail][News] Failed to fetch for language {}: {}", lang, e);
                             }
                         }
                     }
-                    Err(e) => {
-                        error!("[StarRail][News] Failed to fetch for language {}: {}", lang, e);
-                    }
-                }
-            }
 
-            info!(
-                "[StarRail][News] Fetch complete - Total: {}, New: {}, Failed: {}", 
-                total_items, 
-                new_items, 
-                failed_items
-            );
+                    info!(
+                        "[StarRail][News] Fetch complete - Total: {}, New: {}, Failed: {}", 
+                        total_items, 
+                        new_items, 
+                        failed_items
+                    );
+                }
+            ).await {
+                error!("[StarRail][News] Mutex error: {}", e);
+            }
         })
     })?).await?;
 

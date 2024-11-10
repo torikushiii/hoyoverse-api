@@ -85,77 +85,92 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
         let db = db.clone();
         let config = config.clone();
         Box::pin(async move {
-            info!("[Zenless][News] Running scheduled news fetching");
-            let mut total_items = 0;
-            let mut new_items = 0;
-            let mut failed_items = 0;
+            let mutex = match db.redis.create_mutex().await {
+                Ok(mutex) => mutex,
+                Err(e) => {
+                    error!("[Zenless][News] Failed to create mutex: {}", e);
+                    return;
+                }
+            };
+            
+            if let Err(e) = mutex.acquire(
+                "zenless_news_fetch".to_string(),
+                || async {
+                    info!("[Zenless][News] Running scheduled news fetching");
+                    let mut total_items = 0;
+                    let mut new_items = 0;
+                    let mut failed_items = 0;
 
-            let resolver = ZenlessNewsResolver::new(&config);
-            for lang in ZENLESS_LANGUAGES {
-                match resolver.fetch_news(lang).await {
-                    Ok(news_items) => {
-                        total_items += news_items.len();
-                        let collection = db.mongo.collection::<Document>("zenless_news");
-                        let options = mongodb::options::UpdateOptions::builder().upsert(true).build();
+                    let resolver = ZenlessNewsResolver::new(&config);
+                    for lang in ZENLESS_LANGUAGES {
+                        match resolver.fetch_news(lang).await {
+                            Ok(news_items) => {
+                                total_items += news_items.len();
+                                let collection = db.mongo.collection::<Document>("zenless_news");
+                                let options = mongodb::options::UpdateOptions::builder().upsert(true).build();
 
-                        for news_item in news_items {
-                            match bson::to_document(&news_item) {
-                                Ok(doc) => {
-                                    let filter = doc! { 
-                                        "external_id": &news_item.external_id,
-                                        "lang": &news_item.lang 
-                                    };
-                                    let update = doc! { "$set": &doc };
-                                    
-                                    match collection
-                                        .update_one(filter, update)
-                                        .with_options(options.clone())
-                                        .await 
-                                    {
-                                        Ok(update_result) => {
-                                            if update_result.upserted_id.is_some() {
-                                                new_items += 1;
-                                                info!(
-                                                    "[Zenless][News] Inserted new item: {} ({}) [{}]", 
-                                                    news_item.title, 
-                                                    news_item.news_type,
-                                                    news_item.lang
-                                                );
+                                for news_item in news_items {
+                                    match bson::to_document(&news_item) {
+                                        Ok(doc) => {
+                                            let filter = doc! { 
+                                                "external_id": &news_item.external_id,
+                                                "lang": &news_item.lang 
+                                            };
+                                            let update = doc! { "$set": &doc };
+                                            
+                                            match collection
+                                                .update_one(filter, update)
+                                                .with_options(options.clone())
+                                                .await 
+                                            {
+                                                Ok(update_result) => {
+                                                    if update_result.upserted_id.is_some() {
+                                                        new_items += 1;
+                                                        info!(
+                                                            "[Zenless][News] Inserted new item: {} ({}) [{}]", 
+                                                            news_item.title, 
+                                                            news_item.news_type,
+                                                            news_item.lang
+                                                        );
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    failed_items += 1;
+                                                    error!(
+                                                        "[Zenless][News] Failed to update item {}: {}", 
+                                                        news_item.external_id, 
+                                                        e
+                                                    );
+                                                }
                                             }
                                         }
                                         Err(e) => {
                                             failed_items += 1;
                                             error!(
-                                                "[Zenless][News] Failed to update item {}: {}", 
+                                                "[Zenless][News] Failed to serialize item {}: {}", 
                                                 news_item.external_id, 
                                                 e
                                             );
                                         }
                                     }
                                 }
-                                Err(e) => {
-                                    failed_items += 1;
-                                    error!(
-                                        "[Zenless][News] Failed to serialize item {}: {}", 
-                                        news_item.external_id, 
-                                        e
-                                    );
-                                }
+                            }
+                            Err(e) => {
+                                error!("[Zenless][News] Failed to fetch for language {}: {}", lang, e);
                             }
                         }
                     }
-                    Err(e) => {
-                        error!("[Zenless][News] Failed to fetch for language {}: {}", lang, e);
-                    }
-                }
-            }
 
-            info!(
-                "[Zenless][News] Fetch complete - Total: {}, New: {}, Failed: {}", 
-                total_items, 
-                new_items, 
-                failed_items
-            );
+                    info!(
+                        "[Zenless][News] Fetch complete - Total: {}, New: {}, Failed: {}", 
+                        total_items, 
+                        new_items, 
+                        failed_items
+                    );
+                }
+            ).await {
+                error!("[Zenless][News] Mutex error: {}", e);
+            }
         })
     })?).await?;
 

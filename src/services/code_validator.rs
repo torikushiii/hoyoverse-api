@@ -249,24 +249,36 @@ impl CodeValidationService {
         let mut codes_to_update = Vec::new();
 
         while let Ok(Some(code)) = cursor.try_next().await {
-            match validator(self, &code.code, test_account).await {
-                Ok(result) => {
-                    match result {
-                        ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
-                            // Code is still considered valid
-                        },
-                        _ => {
-                            debug!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
-                            codes_to_update.push(code);
+            let code_clone = code.clone();
+            let result = self.db.redis.create_mutex().await
+                .expect("Failed to create distributed mutex")
+                .acquire(
+                    format!("code_validation:{}", code.code),
+                    || async {
+                        match validator(self, &code.code, test_account).await {
+                            Ok(result) => {
+                                match result {
+                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
+                                        // Code is still considered valid
+                                    },
+                                    _ => {
+                                        debug!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
+                                        codes_to_update.push(code);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
+                            }
                         }
+                        
+                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
                     }
-                }
-                Err(e) => {
-                    error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
-                }
+                ).await;
+
+            if let Err(e) = result {
+                error!("{} Mutex error while validating code {}: {}", log_prefix, code_clone.code, e);
             }
-            
-            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
         }
 
         let collection = self.db.mongo.collection::<GameCode>(collection_name);

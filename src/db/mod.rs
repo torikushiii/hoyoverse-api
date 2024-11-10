@@ -22,15 +22,22 @@ impl DatabaseConnections {
     }
 
     pub async fn get_cached_data(&self, collection: String, key: String) -> anyhow::Result<Option<String>> {
-        if let Some(data) = self.redis.get_cached(&key).await? {
-            return Ok(Some(data));
-        }
+        let mutex = self.redis.create_mutex().await?;
+        
+        mutex.acquire(
+            format!("cache_operation:{collection}:{key}"),
+            || async {
+                if let Some(data) = self.redis.get_cached(&key).await? {
+                    return Ok(Some(data));
+                }
 
-        if let Some(data) = self.mongo.get_document(&collection, &key).await? {
-            self.redis.set_cached(&key, &data, 300).await?;
-            return Ok(Some(data));
-        }
+                if let Some(data) = self.mongo.get_document(&collection, &key).await? {
+                    self.redis.set_cached(&key, &data, 300).await?;
+                    return Ok(Some(data));
+                }
 
-        Ok(None)
+                Ok(None)
+            }
+        ).await?
     }
 } 

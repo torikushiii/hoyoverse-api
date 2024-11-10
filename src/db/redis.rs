@@ -2,10 +2,11 @@ use anyhow::Result;
 use fred::prelude::*;
 use fred::types::{RedisConfig, PerformanceConfig, ReconnectPolicy, Expiration};
 use fred::interfaces::ClientLike;
+use crate::mutex::DistributedMutex;
 
 #[derive(Clone)]
 pub struct RedisConnection {
-    client: RedisClient,
+    pub(crate) client: RedisClient,
     config: RedisConfig,
     rate_limit_config: crate::config::RateLimitConfig,
 }
@@ -35,6 +36,10 @@ impl RedisConnection {
             config,
             rate_limit_config: rate_limit,
         })
+    }
+
+    pub async fn create_mutex(&self) -> Result<DistributedMutex> {
+        DistributedMutex::new(self.client.clone()).await
     }
 
     pub fn get_config(&self) -> &RedisConfig {
