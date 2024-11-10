@@ -50,6 +50,7 @@ async-trait = "0.1.80"
 bytes = "1.7.1"
 regex = "1.10.6"
 uuid = { version = "1.7", features = ["v4"] }
+once_cell = "1.18"
 
 # HTML Parsing
 scraper = "0.21"
