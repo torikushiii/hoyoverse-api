@@ -22,8 +22,12 @@ use hoyoverse_api::{
     routes,
 };
 
+use hoyoverse_api::utils::datetime::set_start_time;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    set_start_time();
+
     let config = Settings::new().expect("Failed to load configuration");
 
     let fmt_layer = tracing_subscriber::fmt::layer()

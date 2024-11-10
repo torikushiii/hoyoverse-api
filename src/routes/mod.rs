@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use crate::db::DatabaseConnections;
 use crate::ratelimit::RateLimiter;
+use crate::utils::datetime::get_uptime;
 
 mod genshin;
 mod starrail;
@@ -24,7 +25,7 @@ pub fn mihoyo_routes() -> Router<AppState> {
 
 #[derive(Serialize)]
 struct ApiInfo {
-    uptime: String,
+    uptime: i64,
     endpoints: Vec<String>,
 }
 
@@ -45,7 +46,7 @@ async fn root_handler() -> Json<ApiInfo> {
     ];
 
     Json(ApiInfo {
-        uptime: "0".to_string(),
+        uptime: get_uptime(),
         endpoints,
     })
 }
