@@ -103,7 +103,6 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                     };
 
                     if !code.is_empty() && !rewards.is_empty() {
-                        debug!("[Genshin][Codes][Game8] Found code: {} with rewards: {:?}", code, rewards);
                         codes.push(GameCode {
                             id: None,
                             code,
