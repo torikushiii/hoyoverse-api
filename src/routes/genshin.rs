@@ -2,15 +2,14 @@ use axum::{
     Router,
     routing::get,
     response::Json,
-    extract::{Path, State, ConnectInfo, Query},
-    http::StatusCode,
+    extract::{Path, State, Query},
+    http::{StatusCode, HeaderMap},
 };
 use crate::types::{GameCode, CodesResponse, NewsItem, GameCodeResponse, NewsItemResponse};
 use crate::routes::AppState;
 use mongodb::bson;
 use futures_util::TryStreamExt;
 use tracing::{error, debug};
-use std::net::SocketAddr;
 use crate::utils::lang::parse_language_code;
 use serde::Deserialize;
 
@@ -23,15 +22,15 @@ pub fn routes() -> Router<AppState> {
 #[axum::debug_handler]
 async fn codes(
     State(state): State<AppState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Result<Json<CodesResponse>, StatusCode> {
     let (db, rate_limiter) = state;
-    debug!("Handling request for /genshin/codes from {}", addr.ip());
+    debug!("Handling request for /genshin/codes");
 
     let rate_limit = rate_limiter
-        .check_rate_limit_with_ip(
+        .check_rate_limit_with_headers(
             "genshin:codes",
-            addr.ip(),
+            &headers,
             db.redis.get_rate_limit_config(),
         )
         .await
@@ -107,15 +106,15 @@ async fn news(
     Path(category): Path<String>,
     Query(query): Query<NewsQuery>,
     State(state): State<AppState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<NewsItemResponse>>, StatusCode> {
     let (db, rate_limiter) = state;
-    debug!("Handling request for /genshin/news/{} from {}", category, addr.ip());
+    debug!("Handling request for /genshin/news/{}", category);
 
     let rate_limit = rate_limiter
-        .check_rate_limit_with_ip(
+        .check_rate_limit_with_headers(
             "genshin:news",
-            addr.ip(),
+            &headers,
             db.redis.get_rate_limit_config(),
         )
         .await
@@ -135,8 +134,15 @@ async fn news(
         .unwrap_or("en");
     let normalized_lang = parse_language_code(lang);
 
+    let normalized_category = match category.as_str() {
+        "event" | "events" => "event",
+        "notice" | "notices" => "notice",
+        "info" | "information" => "info",
+        _ => &category
+    };
+
     let filter = bson::doc! {
-        "type": &category,
+        "type": normalized_category,
         "lang": normalized_lang
     };
     debug!("Querying with filter: {:?}", filter);

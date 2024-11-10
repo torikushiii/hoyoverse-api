@@ -5,6 +5,7 @@ use fred::prelude::*;
 use fred::types::{Function, Library, PerformanceConfig, ReconnectPolicy};
 use fred::clients::RedisClient;
 use std::net::IpAddr;
+use axum::http::HeaderMap;
 
 #[derive(Debug, Clone)]
 pub struct RateLimitResponse {
@@ -132,5 +133,48 @@ impl RateLimiter {
             config.punishment_duration,
         )
         .await
+    }
+
+    pub fn get_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
+        if let Some(ip) = headers.get("CF-Connecting-IP")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|ip| ip.parse::<IpAddr>().ok())
+        {
+            return Some(ip);
+        }
+
+        if let Some(ip) = headers.get("X-Real-IP")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|ip| ip.parse::<IpAddr>().ok())
+        {
+            return Some(ip);
+        }
+
+        if let Some(forwarded) = headers.get("X-Forwarded-For")
+            .and_then(|h| h.to_str().ok())
+        {
+            if let Some(ip) = forwarded.split(',')
+                .next()
+                .and_then(|ip| ip.trim().parse::<IpAddr>().ok())
+            {
+                return Some(ip);
+            }
+        }
+
+        None
+    }
+
+    pub async fn check_rate_limit_with_headers(
+        &self,
+        resource: &str,
+        headers: &HeaderMap,
+        config: &crate::config::RateLimitConfig,
+    ) -> Result<RateLimitResponse> {
+        let ip = Self::get_real_ip(headers)
+            .unwrap_or_else(|| "0.0.0.0".parse().unwrap());
+
+        debug!("Rate limit check for IP {} (from headers) on resource {}", ip, resource);
+
+        self.check_rate_limit_with_ip(resource, ip, config).await
     }
 }
