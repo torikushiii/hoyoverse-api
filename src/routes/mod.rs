@@ -48,4 +48,4 @@ async fn root_handler() -> Json<ApiInfo> {
         uptime: "0".to_string(),
         endpoints,
     })
-} 
+}

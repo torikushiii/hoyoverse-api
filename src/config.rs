@@ -67,7 +67,7 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
         let environment = env::var("RUN_ENV").unwrap_or_else(|_| "development".into());
-        
+
         let config_file = match environment.as_str() {
             "production" => "prod",
             "development" | _ => "dev",
@@ -82,4 +82,4 @@ impl Settings {
 
         s.try_deserialize()
     }
-} 
+}

@@ -13,17 +13,17 @@ impl DatabaseConnections {
     pub async fn new(config: &crate::config::Settings) -> anyhow::Result<Self> {
         let mongo = MongoConnection::new(config).await?;
         let redis = RedisConnection::new(
-            &config.redis.url, 
+            &config.redis.url,
             config.redis.database,
             config.redis.rate_limit.clone(),
         ).await?;
-        
+
         Ok(Self { mongo, redis })
     }
 
     pub async fn get_cached_data(&self, collection: String, key: String) -> anyhow::Result<Option<String>> {
         let mutex = self.redis.create_mutex().await?;
-        
+
         mutex.acquire(
             format!("cache_operation:{collection}:{key}"),
             || async {
@@ -40,4 +40,4 @@ impl DatabaseConnections {
             }
         ).await?
     }
-} 
+}

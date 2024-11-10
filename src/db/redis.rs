@@ -14,7 +14,7 @@ pub struct RedisConnection {
 impl RedisConnection {
     pub async fn new(url: &str, database: u8, rate_limit: crate::config::RateLimitConfig) -> Result<Self> {
         let mut config = RedisConfig::from_url(url)?;
-        
+
         config.database = Some(database);
         tracing::debug!("Using Redis database: {}", database);
 
@@ -27,11 +27,11 @@ impl RedisConnection {
 
         client.connect();
         client.wait_for_connect().await?;
-        
+
         client.select(database).await?;
         tracing::debug!("Selected Redis database: {}", database);
-        
-        Ok(Self { 
+
+        Ok(Self {
             client,
             config,
             rate_limit_config: rate_limit,
@@ -69,4 +69,4 @@ impl RedisConnection {
         tracing::debug!("Set cache for key: {}", key);
         Ok(())
     }
-} 
+}

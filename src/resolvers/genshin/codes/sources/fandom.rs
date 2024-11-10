@@ -9,7 +9,7 @@ use regex::Regex;
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://genshin-impact.fandom.com/wiki/Promotional_Code";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
@@ -31,9 +31,9 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     if let Some(active_section) = document.select(&active_codes_selector).next() {
         if let Some(table) = document.select(&table_selector)
             .find(|t| {
-                t.html().as_bytes().as_ptr() as usize > 
+                t.html().as_bytes().as_ptr() as usize >
                 active_section.html().as_bytes().as_ptr() as usize
-            }) 
+            })
         {
             let mut rows = table.select(&row_selector);
             rows.next();
@@ -43,7 +43,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                 if cells.len() >= 3 {
                     let code = extract_code(&cells[0], &code_selector);
                     let server = cells[1].text().collect::<String>().trim().to_lowercase();
-                    
+
                     // Only process codes for "all" servers and non-empty codes
                     if server == "all" && !code.is_empty() {
                         // Parse rewards using regex to match item names followed by "×" and numbers
@@ -92,7 +92,7 @@ fn extract_code(cell: &ElementRef, code_selector: &Selector) -> String {
 
 fn parse_rewards(rewards_text: &str) -> Option<Vec<String>> {
     let re = Regex::new(r"([^×]+)×\s*(\d+(?:,\d+)?)").unwrap();
-    
+
     let rewards: Vec<String> = re.captures_iter(rewards_text)
         .map(|cap| {
             let item = cap[1].trim();
@@ -106,4 +106,4 @@ fn parse_rewards(rewards_text: &str) -> Option<Vec<String>> {
     } else {
         Some(rewards)
     }
-} 
+}

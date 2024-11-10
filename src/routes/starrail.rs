@@ -54,7 +54,7 @@ async fn codes(
     }
 
     let collection = db.mongo.collection::<GameCode>("starrail_codes");
-    
+
     let active_filter = bson::doc! { "active": true };
     let mut active = Vec::new();
     match collection.find(active_filter).await {
@@ -112,7 +112,7 @@ async fn news(
 ) -> Result<Json<Vec<NewsItemResponse>>, StatusCode> {
     let (db, rate_limiter) = state;
     debug!("Handling request for /starrail/news/{} from {}", category, addr.ip());
-    
+
     let rate_limit = rate_limiter
         .check_rate_limit_with_ip(
             "starrail:news",
@@ -130,18 +130,18 @@ async fn news(
     }
 
     let collection = db.mongo.collection::<NewsItem>("starrail_news");
-    
+
     let lang = query.lang
         .as_deref()
         .unwrap_or("en");
     let normalized_lang = parse_language_code(lang);
-    
-    let filter = bson::doc! { 
+
+    let filter = bson::doc! {
         "type": &category,
         "lang": normalized_lang
     };
     debug!("Querying with filter: {:?}", filter);
-    
+
     let cursor = match collection.find(filter.clone()).await {
         Ok(cursor) => cursor,
         Err(e) => {
@@ -158,8 +158,8 @@ async fn news(
 
     if news.is_empty() {
         debug!(
-            "No news items found for category: {} with language: {}. Filter: {:?}", 
-            category, 
+            "No news items found for category: {} with language: {}. Filter: {:?}",
+            category,
             normalized_lang,
             filter
         );
@@ -168,4 +168,4 @@ async fn news(
     }
 
     Ok(Json(news))
-} 
+}

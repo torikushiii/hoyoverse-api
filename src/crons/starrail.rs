@@ -9,7 +9,7 @@ use mongodb::{
 use crate::{
     db::DatabaseConnections,
     resolvers::starrail::{StarRailResolver, news::sources::hoyolab::{
-        NewsResolver as StarRailNewsResolver, 
+        NewsResolver as StarRailNewsResolver,
         SUPPORTED_LANGUAGES as STARRAIL_LANGUAGES
     }},
     config::Settings,
@@ -31,7 +31,7 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
             match StarRailResolver::fetch_codes(&config).await {
                 Ok(mut new_codes) => {
                     let collection = db.mongo.collection::<Document>("starrail_codes");
-                    
+
                     let is_empty = check_collection_empty(&collection).await;
                     if is_empty {
                         info!("[StarRail][Codes] Collection is empty, setting all codes as inactive");
@@ -50,18 +50,18 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
 
                         if let Ok(mut doc) = bson::to_document(&code) {
                             doc.remove("date");
-                            let insert_doc = doc! { 
+                            let insert_doc = doc! {
                                 "code": &code.code,
                                 "active": code.active,
                                 "date": bson::DateTime::now(),
                                 "rewards": &code.rewards,
                                 "source": &code.source
                             };
-                            
+
                             if collection.insert_one(insert_doc).await.is_ok() {
                                 info!(
-                                    "[StarRail][Codes] Inserted new code: {} (active: {})", 
-                                    code.code, 
+                                    "[StarRail][Codes] Inserted new code: {} (active: {})",
+                                    code.code,
                                     code.active
                                 );
                             }
@@ -90,7 +90,7 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
                     return;
                 }
             };
-            
+
             if let Err(e) = mutex.acquire(
                 "starrail_news_fetch".to_string(),
                 || async {
@@ -110,23 +110,23 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
                                 for news_item in news_items {
                                     match bson::to_document(&news_item) {
                                         Ok(doc) => {
-                                            let filter = doc! { 
+                                            let filter = doc! {
                                                 "external_id": &news_item.external_id,
-                                                "lang": &news_item.lang 
+                                                "lang": &news_item.lang
                                             };
                                             let update = doc! { "$set": &doc };
-                                            
+
                                             match collection
                                                 .update_one(filter, update)
                                                 .with_options(options.clone())
-                                                .await 
+                                                .await
                                             {
                                                 Ok(update_result) => {
                                                     if update_result.upserted_id.is_some() {
                                                         new_items += 1;
                                                         info!(
-                                                            "[StarRail][News] Inserted new item: {} ({}) [{}]", 
-                                                            news_item.title, 
+                                                            "[StarRail][News] Inserted new item: {} ({}) [{}]",
+                                                            news_item.title,
                                                             news_item.news_type,
                                                             news_item.lang
                                                         );
@@ -135,8 +135,8 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
                                                 Err(e) => {
                                                     failed_items += 1;
                                                     error!(
-                                                        "[StarRail][News] Failed to update item {}: {}", 
-                                                        news_item.external_id, 
+                                                        "[StarRail][News] Failed to update item {}: {}",
+                                                        news_item.external_id,
                                                         e
                                                     );
                                                 }
@@ -145,8 +145,8 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
                                         Err(e) => {
                                             failed_items += 1;
                                             error!(
-                                                "[StarRail][News] Failed to serialize item {}: {}", 
-                                                news_item.external_id, 
+                                                "[StarRail][News] Failed to serialize item {}: {}",
+                                                news_item.external_id,
                                                 e
                                             );
                                         }
@@ -160,9 +160,9 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
                     }
 
                     info!(
-                        "[StarRail][News] Fetch complete - Total: {}, New: {}, Failed: {}", 
-                        total_items, 
-                        new_items, 
+                        "[StarRail][News] Fetch complete - Total: {}, New: {}, Failed: {}",
+                        total_items,
+                        new_items,
                         failed_items
                     );
                 }
@@ -179,4 +179,4 @@ pub async fn schedule_tasks(sched: &JobScheduler, db: Arc<DatabaseConnections>, 
     schedule_codes(sched, db.clone(), config.clone()).await?;
     schedule_news(sched, db.clone(), config.clone()).await?;
     Ok(())
-} 
+}

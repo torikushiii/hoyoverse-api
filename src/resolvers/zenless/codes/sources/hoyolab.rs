@@ -52,7 +52,7 @@ static REWARD_HASHES: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .header("x-rpc-app_version", "2.42.0")
@@ -77,10 +77,10 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
     if let Some(exchange_module) = hoyolab_data.data.modules.iter()
         .find(|m| m.exchange_group.is_some()) {
-        
+
         if let Some(bonuses) = exchange_module.exchange_group.as_ref()
             .map(|g| &g.bonuses) {
-            
+
             for bonus in bonuses.iter().filter(|b| b.code_status == "ON") {
                 let rewards: Vec<String> = bonus.icon_bonuses.iter()
                     .map(|icon_bonus| {
@@ -111,4 +111,4 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     Ok(codes)
-} 
+}

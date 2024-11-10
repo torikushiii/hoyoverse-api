@@ -8,7 +8,7 @@ use chrono::Utc;
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Genshin-Impact/archives/304759";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
@@ -32,8 +32,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
     for header in document.select(&headers_selector) {
         let header_text = header.text().collect::<String>();
-        
-        if header_text.contains("Active Redeem Codes in Version") || 
+
+        if header_text.contains("Active Redeem Codes in Version") ||
            header_text.contains("Special Program Codes") {
 
             if let Some(list) = header.next_siblings()
@@ -48,7 +48,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
             {
                 for item in list.select(&list_item_selector) {
                     let item_text = item.text().collect::<String>();
-                    
+
                     if item_text.contains("EXPIRED") {
                         continue;
                     }
@@ -62,7 +62,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
                     let rewards = if let Some(rewards_text) = item_text.split('-').nth(1) {
                         let rewards_text = rewards_text.trim();
-                        
+
                         if header_text.contains("Active Redeem Codes in Version") {
                             // Process rewards for active codes section
                             // Store the processed string to avoid temporary value issues
@@ -76,10 +76,10 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                             let mut i = 0;
                             while i < parts.len() {
                                 let current = parts[i];
-                                
+
                                 // Check if current part is a number and next part starts with "000"
-                                if i + 1 < parts.len() && 
-                                   current.chars().all(|c| c.is_digit(10)) && 
+                                if i + 1 < parts.len() &&
+                                   current.chars().all(|c| c.is_digit(10)) &&
                                    parts[i + 1].starts_with("000") {
                                     // Combine the number with its thousand part
                                     processed_rewards.push(format!("{},{}", current, &parts[i + 1]));
@@ -93,7 +93,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                                     i += 1;
                                 }
                             }
-                            
+
                             processed_rewards
                         } else {
                             vec![rewards_text.to_string()]
@@ -125,4 +125,4 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     Ok(codes)
-} 
+}

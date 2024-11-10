@@ -1,1 +1,1 @@
-pub mod hoyolab; 
+pub mod hoyolab;

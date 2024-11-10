@@ -34,4 +34,4 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     codes.dedup_by(|a, b| a.code == b.code);
 
     Ok(codes)
-} 
+}

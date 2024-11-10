@@ -20,7 +20,7 @@ impl NewsResolver {
         }
     }
 
-    async fn fetch_api<T>(&self, url: &str, params: &[(&str, &str)], lang: &str) -> anyhow::Result<T> 
+    async fn fetch_api<T>(&self, url: &str, params: &[(&str, &str)], lang: &str) -> anyhow::Result<T>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -40,7 +40,7 @@ impl NewsResolver {
 
     pub async fn fetch_news(&self, lang: &str) -> anyhow::Result<Vec<NewsItem>> {
         let mut all_news = Vec::new();
-        
+
         match self.fetch_api::<EventList>(
             "https://bbs-api-os.hoyolab.com/community/community_contribution/wapi/event/list",
             &[
@@ -136,4 +136,4 @@ pub async fn fetch_news(config: &Settings, _category: &str) -> anyhow::Result<Ve
     }
 
     Ok(all_news)
-} 
+}

@@ -9,7 +9,7 @@ use regex::Regex;
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Zenless-Zone-Zero/archives/435683";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
@@ -35,11 +35,11 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
     let link_selector = Selector::parse("a.a-link").unwrap();
     let code_regex = Regex::new(r"^[A-Z0-9]+$").unwrap();
     let current_time = Utc::now();
-    
+
     let codes = document.select(&item_selector)
         .filter_map(|item| {
             let item_text = item.text().collect::<String>();
-            
+
             // Skip items that don't contain a dash
             if !item_text.contains('-') {
                 return None;
@@ -75,13 +75,13 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
 
             while let Some(c) = chars.next() {
                 current_reward.push(c);
-                
+
                 if c == ',' {
                     // Look ahead to see if the next non-whitespace character is a letter
                     let mut peek_iter = chars.clone();
                     let next_non_whitespace = peek_iter
                         .find(|&c| !c.is_whitespace());
-                    
+
                     if let Some(next_char) = next_non_whitespace {
                         if next_char.is_alphabetic() {
                             // This comma separates rewards
@@ -117,4 +117,4 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
         .collect();
 
     Ok(codes)
-} 
+}

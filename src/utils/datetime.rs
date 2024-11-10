@@ -9,4 +9,4 @@ impl DateTimeExt for DateTime<Utc> {
     fn to_bson_datetime(&self) -> BsonDateTime {
         self.clone().into()
     }
-} 
+}

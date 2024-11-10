@@ -30,4 +30,4 @@ local function ratelimit(keys, args)
     return {remaining, reset}
 end
 
-redis.register_function('api_ratelimit', ratelimit) 
+redis.register_function('api_ratelimit', ratelimit)

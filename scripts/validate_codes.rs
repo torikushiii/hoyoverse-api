@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Settings::new().expect("Failed to load configuration");
-    
+
     let db = DatabaseConnections::new(&config).await?;
     let db = Arc::new(db);
     let config = Arc::new(config);
@@ -48,4 +48,4 @@ async fn main() -> anyhow::Result<()> {
     validator.validate_all_codes().await;
 
     Ok(())
-} 
+}

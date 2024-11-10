@@ -33,7 +33,7 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub async fn new(redis: Arc<crate::db::RedisConnection>) -> Result<Self> {
         debug!("Initializing rate limiter");
-        
+
         let redis_client = RedisClient::new(
             redis.get_config().clone(),
             Some(PerformanceConfig::default()),
@@ -44,7 +44,7 @@ impl RateLimiter {
         redis_client.wait_for_connect().await?;
 
         let script_content = include_str!("limit.lua");
-        
+
         let lib = Library::from_code(&redis_client, script_content)
             .await
             .context("Failed to create Lua library")?;
@@ -56,7 +56,7 @@ impl RateLimiter {
             .clone();
 
         debug!("Rate limiter initialized successfully");
-        
+
         Ok(Self {
             redis_client,
             ratelimit,
@@ -92,7 +92,7 @@ impl RateLimiter {
                 anyhow::anyhow!("Failed to check rate limit: {}", e)
             })?;
 
-        debug!("Rate limit result for {}: remaining={}, reset={}", 
+        debug!("Rate limit result for {}: remaining={}, reset={}",
             key, result[0], result[1]);
 
         Ok(RateLimitResponse {

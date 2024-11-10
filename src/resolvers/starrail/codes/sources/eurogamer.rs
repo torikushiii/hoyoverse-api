@@ -8,7 +8,7 @@ use chrono::Utc;
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://www.eurogamer.net/honkai-star-rail-codes-livestream-active-working-how-to-redeem-9321";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
@@ -93,4 +93,4 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     Ok(codes)
-} 
+}

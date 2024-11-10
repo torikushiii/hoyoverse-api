@@ -73,7 +73,7 @@ impl CodeValidationService {
 
     pub async fn validate_all_codes(&self) {
         info!("Running code validation for all games...");
-        
+
         self.validate_starrail_codes().await;
         self.validate_genshin_codes().await;
         self.validate_zenless_codes().await;
@@ -166,7 +166,7 @@ impl CodeValidationService {
     async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        
+
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let response = client
@@ -188,14 +188,14 @@ impl CodeValidationService {
             .await?;
 
         let status = response.status();
-        
+
         if !status.is_success() {
             error!("[Zenless] Failed HTTP request for code {}: Status {}", code, status);
             return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
         }
 
         let response_body: HoyolabResponse = response.json().await?;
-        
+
         let result = match response_body.retcode {
             0 => ValidationResult::Valid,
             -2017 | -2018 => {
@@ -227,7 +227,7 @@ impl CodeValidationService {
                 ValidationResult::InvalidCredentials
             },
             code => {
-                error!("[Zenless] Unknown response code {} for code {}: {}", 
+                error!("[Zenless] Unknown response code {} for code {}: {}",
                     code, code, response_body.message);
                 ValidationResult::Unknown(code, response_body.message)
             }
@@ -271,7 +271,7 @@ impl CodeValidationService {
                                 error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
                             }
                         }
-                        
+
                         tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
                     }
                 ).await;
@@ -298,7 +298,7 @@ impl CodeValidationService {
     async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hkrpg-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        
+
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let response = client
@@ -320,14 +320,14 @@ impl CodeValidationService {
             .await?;
 
         let status = response.status();
-        
+
         if !status.is_success() {
             error!("[StarRail] Failed HTTP request for code {}: Status {}", code, status);
             return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
         }
 
         let response_body: HoyolabResponse = response.json().await?;
-        
+
         let result = match response_body.retcode {
             0 => ValidationResult::Valid,
             -2017 | -2018 => {
@@ -355,7 +355,7 @@ impl CodeValidationService {
                 ValidationResult::InvalidCredentials
             },
             code => {
-                error!("[StarRail] Unknown response code {} for code {}: {}", 
+                error!("[StarRail] Unknown response code {} for code {}: {}",
                     code, code, response_body.message);
                 ValidationResult::Unknown(code, response_body.message)
             }
@@ -368,7 +368,7 @@ impl CodeValidationService {
     async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hk4e-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        
+
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let response = client
@@ -391,14 +391,14 @@ impl CodeValidationService {
             .await?;
 
         let status = response.status();
-        
+
         if !status.is_success() {
             error!("[Genshin] Failed HTTP request for code {}: Status {}", code, status);
             return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
         }
 
         let response_body: HoyolabResponse = response.json().await?;
-        
+
         let result = match response_body.retcode {
             0 => ValidationResult::Valid,
             -2017 | -2018 => {
@@ -426,7 +426,7 @@ impl CodeValidationService {
                 ValidationResult::InvalidCredentials
             },
             code => {
-                error!("[Genshin] Unknown response code {} for code {}: {}", 
+                error!("[Genshin] Unknown response code {} for code {}: {}",
                     code, code, response_body.message);
                 ValidationResult::Unknown(code, response_body.message)
             }
@@ -435,4 +435,4 @@ impl CodeValidationService {
         debug!("[Genshin] Validation result for code {}: {:?}", code, result);
         Ok(result)
     }
-} 
+}

@@ -8,7 +8,7 @@ use chrono::Utc;
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Honkai-Star-Rail/archives/410296";
-    
+
     let response = client.get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
@@ -34,7 +34,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                     // Get the code from the first a.a-link element
                     if let Some(code_element) = item.select(&link_selector).next() {
                         let code = code_element.text().collect::<String>().trim().to_string();
-                        
+
                         // Get rewards text by removing the code and "NEW" from the full text
                         let full_text = item.text().collect::<String>();
                         let rewards_text = full_text
@@ -42,20 +42,20 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                             .replace("NEW", "")
                             .trim()
                             .to_string();
-                        
+
                         // Clean up rewards text
                         let rewards_text = rewards_text
                             .trim_start_matches('(')
                             .trim_end_matches(')')
                             .to_string();
-                        
+
                         // Process rewards, handling cases where numbers might be split by commas
                         let mut rewards = Vec::new();
                         let mut current_reward = String::new();
-                        
+
                         for part in rewards_text.split(',') {
                             let part = part.trim();
-                            if current_reward.chars().last().map_or(false, |c| c.is_ascii_digit()) 
+                            if current_reward.chars().last().map_or(false, |c| c.is_ascii_digit())
                                && part.chars().next().map_or(false, |c| c.is_ascii_digit()) {
                                 // If current reward ends with number and next part starts with number,
                                 // treat it as a thousands separator
@@ -94,4 +94,4 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     Ok(codes)
-} 
+}

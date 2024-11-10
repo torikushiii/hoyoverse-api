@@ -1,19 +1,19 @@
 /// Parses a language code into its normalized form.
-/// 
+///
 /// # Arguments
 /// * `lang_code` - A language code string (e.g., "en", "jp", "kr")
-/// 
+///
 /// # Returns
 /// A normalized language code string (e.g., "en-us", "ja-jp", "ko-kr")
-/// 
+///
 /// # Examples
 /// ```
 /// let result = hoyoverse_api::utils::lang::parse_language_code("en");
 /// assert_eq!(result, "en-us");
-/// 
+///
 /// let result = hoyoverse_api::utils::lang::parse_language_code("jp");
 /// assert_eq!(result, "ja-jp");
-/// 
+///
 /// let result = hoyoverse_api::utils::lang::parse_language_code("kr");
 /// assert_eq!(result, "ko-kr");
 /// ```
@@ -71,4 +71,4 @@ mod tests {
         assert_eq!(parse_language_code("xx"), "en-us");
         assert_eq!(parse_language_code(""), "en-us");
     }
-} 
+}

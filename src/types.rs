@@ -128,7 +128,7 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::de::Error;
-    
+
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum TimestampFormat {
@@ -141,4 +141,4 @@ where
             .map_err(|e| Error::custom(format!("Failed to parse string timestamp: {}", e))),
         TimestampFormat::Integer(i) => Ok(i),
     }
-} 
+}
