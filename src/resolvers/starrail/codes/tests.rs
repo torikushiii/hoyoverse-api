@@ -94,4 +94,25 @@ async fn test_fetch_codes() {
     }
     
     println!("Total unique codes found: {}", unique_codes.len());
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_hoyolab_fetch() {
+    let config = get_test_config();
+    let codes = hoyolab::fetch_codes(&config).await.unwrap();
+    
+    if !codes.is_empty() {
+        for code in &codes {
+            assert!(code.code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+            
+            assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+            
+            assert_eq!(code.source, "hoyolab");
+            
+            assert!(code.active);
+            
+            println!("Found HoyoLab code: {} with rewards: {:?}", code.code, code.rewards);
+        }
+    }
 } 
