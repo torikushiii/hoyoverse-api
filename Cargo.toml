@@ -49,6 +49,7 @@ config = { version = "0.14", features = ["yaml"] }
 async-trait = "0.1.80"
 bytes = "1.7.1"
 regex = "1.10.6"
+uuid = { version = "1.7", features = ["v4"] }
 
 # HTML Parsing
 scraper = "0.21"
