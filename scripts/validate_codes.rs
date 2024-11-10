@@ -21,8 +21,20 @@ async fn main() -> anyhow::Result<()> {
         .with_line_number(false)
         .compact();
 
+    let filter = tracing_subscriber::EnvFilter::new(
+        std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| "debug".to_string())
+    )
+    .add_directive("html5ever=warn".parse().unwrap())
+    .add_directive("selectors=warn".parse().unwrap())
+    .add_directive("scraper=warn".parse().unwrap())
+    .add_directive("reqwest=warn".parse().unwrap())
+    .add_directive("h2=warn".parse().unwrap())
+    .add_directive("hyper=warn".parse().unwrap())
+    .add_directive("rustls=warn".parse().unwrap());
+
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new("debug"))
+        .with(filter)
         .with(fmt_layer)
         .init();
 

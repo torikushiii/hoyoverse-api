@@ -25,7 +25,7 @@ async fn check_collection_empty(collection: &Collection<Document>) -> bool {
 }
 
 async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Result<(), Box<dyn std::error::Error>> {
-    sched.add(Job::new_async("0 * * * * *", move |_, _| {
+    sched.add(Job::new_async("0 */5 * * * *", move |_, _| {
         let db = db.clone();
         let config = config.clone();
         Box::pin(async move {
@@ -81,7 +81,7 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
 }
 
 async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Result<(), Box<dyn std::error::Error>> {
-    sched.add(Job::new_async("0 */15 * * * *", move |_, _| {
+    sched.add(Job::new_async("0 */20 * * * *", move |_, _| {
         let db = db.clone();
         let config = config.clone();
         Box::pin(async move {

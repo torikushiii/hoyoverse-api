@@ -19,7 +19,7 @@ mongodb:
   database: "hoyoverse"
 
 logging:
-  level: "debug"
+  level: "info"
   format: "pretty"
 
 game_accounts:
@@ -28,13 +28,20 @@ game_accounts:
     - cookie_token_v2: "v2_token_here"
       account_mid_v2: "mid_v2_here"
       account_id_v2: "account_id_here"
-      uid: "800373119"
+      uid: "800000000"
       nickname: "Main Account"
       region: "os_eur"
   starrail:
     - cookie_token_v2: "v2_token_here"
       account_mid_v2: "mid_v2_here"
       account_id_v2: "account_id_here"
-      uid: "800373119"
+      uid: "800000000"
       nickname: "Main Account"
       region: "prod_official_eur"
+  zenless:
+    - cookie_token_v2: "v2_token_here"
+      account_mid_v2: "mid_v2_here"
+      account_id_v2: "account_id_here"
+      uid: "800000000"
+      nickname: "Main Account"
+      region: "prod_gf_eu"
