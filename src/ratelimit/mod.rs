@@ -10,13 +10,9 @@ use axum::http::HeaderMap;
 #[derive(Debug, Clone)]
 pub struct RateLimitResponse {
     pub remaining: i64,
-    #[allow(dead_code)]
     pub reset: i64,
-    #[allow(dead_code)]
     pub limit: i64,
-    #[allow(dead_code)]
     pub used: i64,
-    #[allow(dead_code)]
     pub resource: String,
 }
 
@@ -135,19 +131,19 @@ impl RateLimiter {
         .await
     }
 
-    pub fn get_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
+    fn get_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
         if let Some(ip) = headers.get("CF-Connecting-IP")
             .and_then(|h| h.to_str().ok())
             .and_then(|ip| ip.parse::<IpAddr>().ok())
         {
-            return Some(ip);
+            return Some(ip.to_canonical());
         }
 
         if let Some(ip) = headers.get("X-Real-IP")
             .and_then(|h| h.to_str().ok())
             .and_then(|ip| ip.parse::<IpAddr>().ok())
         {
-            return Some(ip);
+            return Some(ip.to_canonical());
         }
 
         if let Some(forwarded) = headers.get("X-Forwarded-For")
@@ -157,7 +153,7 @@ impl RateLimiter {
                 .next()
                 .and_then(|ip| ip.trim().parse::<IpAddr>().ok())
             {
-                return Some(ip);
+                return Some(ip.to_canonical());
             }
         }
 
