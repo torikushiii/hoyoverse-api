@@ -2,16 +2,21 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::Router;
 use tower_http::{
-    cors::CorsLayer,
-    compression::{CompressionLayer, CompressionLevel}
+    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+    compression::{CompressionLayer, CompressionLevel},
+    request_id::{MakeRequestId, RequestId, SetRequestIdLayer, PropagateRequestIdLayer},
+    trace::TraceLayer,
 };
-use tracing::error;
+use tracing::{error, Span};
 use tracing_subscriber::{
     layer::SubscriberExt,
     util::SubscriberInitExt,
     fmt::format::FmtSpan
 };
-use hyper::http::HeaderValue;
+use hyper::{Request, Response, Method};
+use hyper::header::{HeaderName, HeaderValue};
+use uuid::Uuid;
+use std::time::Duration;
 
 use hoyoverse_api::{
     config::Settings,
@@ -23,6 +28,18 @@ use hoyoverse_api::{
 };
 
 use hoyoverse_api::utils::datetime::set_start_time;
+
+#[derive(Clone)]
+struct TraceRequestId;
+
+impl MakeRequestId for TraceRequestId {
+    fn make_request_id<B>(&mut self, _: &Request<B>) -> Option<RequestId> {
+        Some(RequestId::new(
+            HeaderValue::from_str(&Uuid::new_v4().to_string())
+                .expect("UUID should be valid header value")
+        ))
+    }
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -80,14 +97,21 @@ async fn main() -> anyhow::Result<()> {
     let cors = if config.server.cors_origins.contains(&"*".to_string()) {
         CorsLayer::permissive()
     } else {
-        CorsLayer::new().allow_origin(
-            config.server.cors_origins.iter()
-                .map(|origin| {
-                    HeaderValue::from_str(origin)
-                        .expect("Invalid CORS origin")
-                })
-                .collect::<Vec<_>>()
-        )
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::list(
+                config.server.cors_origins.iter()
+                    .map(|origin| {
+                        HeaderValue::from_str(origin)
+                            .expect("Invalid CORS origin")
+                    })
+                    .collect::<Vec<_>>()
+            ))
+            .allow_methods(AllowMethods::list([Method::GET]))
+            .allow_headers(AllowHeaders::list([
+                HeaderName::from_static("content-type"),
+                HeaderName::from_static("x-request-id"),
+            ]))
+            .max_age(Duration::from_secs(7200))
     };
 
     let compression_layer = CompressionLayer::new()
@@ -97,10 +121,32 @@ async fn main() -> anyhow::Result<()> {
         .zstd(true)
         .quality(CompressionLevel::Default);
 
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(|req: &Request<_>| {
+            let matched_path = req
+                .extensions()
+                .get::<axum::extract::MatchedPath>()
+                .map(axum::extract::MatchedPath::as_str);
+
+            tracing::info_span!(
+                "request",
+                "request.method" = %req.method(),
+                "request.uri" = %req.uri(),
+                "request.matched_path" = %matched_path.unwrap_or("<not found>"),
+                "response.status_code" = tracing::field::Empty,
+            )
+        })
+        .on_response(|res: &Response<_>, _latency, span: &Span| {
+            span.record("response.status_code", res.status().as_u16());
+        });
+
     let app = Router::new()
         .nest("/mihoyo", routes::mihoyo_routes())
         .layer(cors)
         .layer(compression_layer)
+        .layer(trace_layer)
+        .layer(SetRequestIdLayer::x_request_id(TraceRequestId))
+        .layer(PropagateRequestIdLayer::x_request_id())
         .with_state((db, rate_limiter));
 
     let addr = SocketAddr::new(

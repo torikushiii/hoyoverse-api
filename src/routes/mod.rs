@@ -25,28 +25,24 @@ pub fn mihoyo_routes() -> Router<AppState> {
 
 #[derive(Serialize)]
 struct ApiInfo {
+    message: &'static str,
+    version: &'static str,
     uptime: i64,
     endpoints: Vec<String>,
 }
 
 async fn root_handler() -> Json<ApiInfo> {
-    let endpoints = vec![
-        "/mihoyo/genshin/codes".to_string(),
-        "/mihoyo/genshin/news/notices".to_string(),
-        "/mihoyo/genshin/news/events".to_string(),
-        "/mihoyo/genshin/news/info".to_string(),
-        "/mihoyo/starrail/codes".to_string(),
-        "/mihoyo/starrail/news/notices".to_string(),
-        "/mihoyo/starrail/news/events".to_string(),
-        "/mihoyo/starrail/news/info".to_string(),
-        "/mihoyo/zenless/codes".to_string(),
-        "/mihoyo/zenless/news/notices".to_string(),
-        "/mihoyo/zenless/news/events".to_string(),
-        "/mihoyo/zenless/news/info".to_string(),
-    ];
-
     Json(ApiInfo {
+        message: "Welcome to the HoYoverse API!",
+        version: env!("CARGO_PKG_VERSION"),
         uptime: get_uptime(),
-        endpoints,
+        endpoints: vec![
+            "/mihoyo/genshin/codes".to_string(),
+            "/mihoyo/genshin/news/{category}".to_string(),
+            "/mihoyo/starrail/codes".to_string(),
+            "/mihoyo/starrail/news/{category}".to_string(),
+            "/mihoyo/zenless/codes".to_string(),
+            "/mihoyo/zenless/news/{category}".to_string(),
+        ],
     })
 }
