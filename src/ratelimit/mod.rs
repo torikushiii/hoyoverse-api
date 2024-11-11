@@ -164,6 +164,12 @@ impl RateLimiter {
         None
     }
 
+    fn get_user_agent(headers: &HeaderMap) -> Option<String> {
+        headers.get("user-agent")
+            .and_then(|h| h.to_str().ok())
+            .map(|s| s.to_string())
+    }
+
     pub async fn check_rate_limit_with_headers(
         &self,
         resource: &str,
@@ -172,6 +178,17 @@ impl RateLimiter {
     ) -> Result<RateLimitResponse> {
         let ip = Self::get_real_ip(headers)
             .unwrap_or_else(|| "0.0.0.0".parse().unwrap());
+
+        if let Some(user_agent) = Self::get_user_agent(headers) {
+            let redis_conn = crate::db::RedisConnection::from_client(
+                self.redis_client.clone(),
+                config.clone()
+            );
+
+            if let Err(e) = redis_conn.log_user_agent(&user_agent).await {
+                error!("Failed to log user agent: {}", e);
+            }
+        }
 
         debug!("Rate limit check for IP {} (from headers) on resource {}", ip, resource);
 

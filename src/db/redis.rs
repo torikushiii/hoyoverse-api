@@ -3,12 +3,13 @@ use fred::prelude::*;
 use fred::types::{RedisConfig, PerformanceConfig, ReconnectPolicy, Expiration};
 use fred::interfaces::ClientLike;
 use crate::mutex::DistributedMutex;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 #[derive(Clone)]
 pub struct RedisConnection {
     pub(crate) client: RedisClient,
-    config: RedisConfig,
-    rate_limit_config: crate::config::RateLimitConfig,
+    pub(crate) config: RedisConfig,
+    pub(crate) rate_limit_config: crate::config::RateLimitConfig,
 }
 
 impl RedisConnection {
@@ -68,5 +69,43 @@ impl RedisConnection {
         ).await?;
         tracing::debug!("Set cache for key: {}", key);
         Ok(())
+    }
+
+    pub async fn log_user_agent(&self, user_agent: &str) -> anyhow::Result<()> {
+        let now = OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .unwrap_or_default();
+
+        self.client.hincrby::<i64, _, _>(
+            "metrics:user_agents",
+            user_agent,
+            1
+        ).await?;
+
+        let timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as f64;
+        let entry = vec![(timestamp, format!("{}:{}", now, user_agent))];
+
+        self.client.zadd::<bool, _, _>(
+            "metrics:user_agents:timeline",
+            None,
+            None,
+            false,
+            false,
+            entry
+        ).await?;
+
+        tracing::debug!("Logged user agent: {}", user_agent);
+        Ok(())
+    }
+
+    pub fn from_client(
+        client: RedisClient,
+        rate_limit_config: crate::config::RateLimitConfig
+    ) -> Self {
+        Self {
+            client,
+            config: RedisConfig::default(),
+            rate_limit_config,
+        }
     }
 }
