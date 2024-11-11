@@ -72,13 +72,13 @@ impl RateLimiter {
         punishment_threshold: i64,
         punishment_duration: i64,
     ) -> Result<RateLimitResponse> {
-        let redis_key = format!("ratelimit:{}", key);
+        let redis_key = key.clone();
         debug!("Checking rate limit for key: {}", redis_key);
 
         let result: Vec<i64> = self.ratelimit
             .fcall(
                 &self.redis_client,
-                vec![redis_key.clone()],
+                vec![redis_key],
                 vec![
                     max_requests,
                     1, // ticket_count
