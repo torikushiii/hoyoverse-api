@@ -3,15 +3,16 @@ use axum::{
     routing::get,
     response::Json,
     extract::{Path, State, Query},
-    http::{StatusCode, HeaderMap},
+    http::HeaderMap,
 };
-use crate::types::{CodesResponse, NewsItem, GameCode, GameCodeResponse, NewsItemResponse};
+use crate::types::{GameCode, CodesResponse, NewsItem, GameCodeResponse, NewsItemResponse};
 use crate::routes::AppState;
 use mongodb::bson;
 use futures_util::TryStreamExt;
 use tracing::{error, debug};
-use serde::Deserialize;
 use crate::utils::lang::parse_language_code;
+use serde::Deserialize;
+use crate::error::ApiError;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -23,7 +24,7 @@ pub fn routes() -> Router<AppState> {
 async fn codes(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<CodesResponse>, StatusCode> {
+) -> Result<Json<CodesResponse>, ApiError> {
     let (db, rate_limiter) = state;
     debug!("Handling request for /starrail/codes");
 
@@ -36,16 +37,19 @@ async fn codes(
         .await
         .map_err(|e| {
             error!("Rate limit check failed: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::internal_server_error("Failed to check rate limit")
         })?;
 
     if !rate_limit.is_allowed() {
         debug!("Rate limit exceeded for /starrail/codes");
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        return Err(ApiError::rate_limit_exceeded("Too many requests"));
     }
 
-    let cached_data = db.get_cached_data("starrail_codes".to_string(), "codes".to_string()).await;
-    if let Ok(Some(data)) = cached_data {
+    let cached_data = db.get_cached_data("starrail_codes".to_string(), "codes".to_string())
+        .await
+        .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
+
+    if let Some(data) = cached_data {
         if let Ok(codes) = serde_json::from_str::<CodesResponse>(&data) {
             debug!("Returning cached codes data");
             return Ok(Json(codes));
@@ -64,7 +68,7 @@ async fn codes(
         }
         Err(e) => {
             error!("Failed to query active codes: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(ApiError::database_error("Failed to query active codes"));
         }
     }
 
@@ -78,7 +82,7 @@ async fn codes(
         }
         Err(e) => {
             error!("Failed to query inactive codes: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(ApiError::database_error("Failed to query inactive codes"));
         }
     }
 
@@ -107,7 +111,7 @@ async fn news(
     Query(query): Query<NewsQuery>,
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Vec<NewsItemResponse>>, StatusCode> {
+) -> Result<Json<Vec<NewsItemResponse>>, ApiError> {
     let (db, rate_limiter) = state;
     debug!("Handling request for /starrail/news/{}", category);
 
@@ -120,11 +124,11 @@ async fn news(
         .await
         .map_err(|e| {
             error!("Rate limit check failed: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ApiError::internal_server_error("Failed to check rate limit")
         })?;
 
     if !rate_limit.is_allowed() {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        return Err(ApiError::rate_limit_exceeded("Too many requests"));
     }
 
     let collection = db.mongo.collection::<NewsItem>("starrail_news");
@@ -138,7 +142,7 @@ async fn news(
         "event" | "events" => "event",
         "notice" | "notices" => "notice",
         "info" | "information" => "info",
-        _ => &category
+        _ => return Err(ApiError::bad_request("Invalid category"))
     };
 
     let filter = bson::doc! {
@@ -151,7 +155,7 @@ async fn news(
         Ok(cursor) => cursor,
         Err(e) => {
             error!("Failed to query news with filter {:?}: {}", filter, e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(ApiError::database_error("Failed to query news"));
         }
     };
 
@@ -168,8 +172,7 @@ async fn news(
             normalized_lang,
             filter
         );
-    } else {
-        debug!("Successfully found {} news items", news.len());
+        return Err(ApiError::not_found("No news items found"));
     }
 
     Ok(Json(news))
