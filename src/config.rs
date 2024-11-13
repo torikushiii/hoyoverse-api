@@ -56,12 +56,18 @@ pub struct GameAccounts {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DiscordConfig {
+    pub webhook_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub server: ServerConfig,
     pub redis: RedisConfig,
     pub mongodb: MongoConfig,
     pub logging: LoggingConfig,
     pub game_accounts: GameAccounts,
+    pub discord: DiscordConfig,
 }
 
 impl Settings {

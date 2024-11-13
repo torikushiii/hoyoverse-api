@@ -7,12 +7,14 @@ use crate::{
     config::Settings,
     error::ValidationResult,
     services::code_validator::CodeValidationService,
+    services::webhook::WebhookService,
 };
 
 pub struct CodeVerificationService {
     db: Arc<DatabaseConnections>,
     config: Arc<Settings>,
     validator: CodeValidationService,
+    webhook: WebhookService,
 }
 
 impl CodeVerificationService {
@@ -20,7 +22,8 @@ impl CodeVerificationService {
         Self {
             db: db.clone(),
             config: config.clone(),
-            validator: CodeValidationService::new(db, config),
+            validator: CodeValidationService::new(db, config.clone()),
+            webhook: WebhookService::new(config),
         }
     }
 
@@ -80,6 +83,12 @@ impl CodeVerificationService {
             .await
         {
             error!("[{}] Failed to update code status: {}", game_type, e);
+        }
+
+        if is_active {
+            if let Err(e) = self.webhook.send_new_code_notification(code, game_type).await {
+                error!("[{}] Failed to send webhook notification: {}", game_type, e);
+            }
         }
 
         Ok(is_active)
