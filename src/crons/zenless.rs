@@ -1,20 +1,18 @@
 use std::sync::Arc;
 use tokio_cron_scheduler::{JobScheduler, Job};
-use tracing::{info, error};
+use tracing::{info, error, debug};
 use mongodb::{
     bson::{self, doc, Document},
     Collection,
 };
 use crate::{
     db::DatabaseConnections,
-    resolvers::zenless::{
-        ZenlessResolver,
-        news::sources::hoyolab::{
-            NewsResolver as ZenlessNewsResolver,
-            SUPPORTED_LANGUAGES as ZENLESS_LANGUAGES
-        }
-    },
+    resolvers::zenless::{ZenlessResolver, news::sources::hoyolab::{
+        NewsResolver as ZenlessNewsResolver,
+        SUPPORTED_LANGUAGES as ZENLESS_LANGUAGES
+    }},
     config::Settings,
+    services::code_verification::CodeVerificationService,
 };
 
 async fn check_collection_empty(collection: &Collection<Document>) -> bool {
@@ -33,6 +31,7 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
             match ZenlessResolver::fetch_codes(&config).await {
                 Ok(mut new_codes) => {
                     let collection = db.mongo.collection::<Document>("zenless_codes");
+                    let verifier = CodeVerificationService::new(db.clone(), config.clone());
 
                     let is_empty = check_collection_empty(&collection).await;
                     if is_empty {
@@ -60,12 +59,31 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                                 "source": &code.source
                             };
 
-                            if collection.insert_one(insert_doc).await.is_ok() {
+                            if let Ok(_) = collection.insert_one(insert_doc).await {
                                 info!(
                                     "[Zenless][Codes] Inserted new code: {} (active: {})",
                                     code.code,
                                     code.active
                                 );
+
+                                if !is_empty {
+                                    match verifier.verify_new_code(&code, "zenless").await {
+                                        Ok(is_active) => {
+                                            debug!(
+                                                "[Zenless][Codes] Code {} verified: active = {}",
+                                                code.code,
+                                                is_active
+                                            );
+                                        }
+                                        Err(e) => {
+                                            error!(
+                                                "[Zenless][Codes] Failed to verify code {}: {}",
+                                                code.code,
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

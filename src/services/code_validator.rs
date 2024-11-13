@@ -163,7 +163,7 @@ impl CodeValidationService {
         ).await;
     }
 
-    async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
 
@@ -202,6 +202,10 @@ impl CodeValidationService {
                 debug!("[Zenless] Code {} is already redeemed", code);
                 ValidationResult::AlreadyRedeemed
             },
+            -2024 => {
+                debug!("[Zenless] Code {} can only be redeemed in-game", code);
+                ValidationResult::Valid
+            },
             -2001 => {
                 info!("[Zenless] Code {} is expired", code);
                 ValidationResult::Expired
@@ -237,65 +241,7 @@ impl CodeValidationService {
         Ok(result)
     }
 
-    async fn process_codes(
-        &self,
-        mut cursor: Cursor<GameCode>,
-        accounts: &[GameAccount],
-        collection_name: &str,
-        validator: for<'a> fn(&'a Self, &'a str, &'a GameAccount) -> Pin<Box<dyn Future<Output = anyhow::Result<ValidationResult>> + Send + 'a>>,
-        log_prefix: &str,
-    ) {
-        let test_account = &accounts[0];
-        let mut codes_to_update = Vec::new();
-
-        while let Ok(Some(code)) = cursor.try_next().await {
-            let code_clone = code.clone();
-            let result = self.db.redis.create_mutex().await
-                .expect("Failed to create distributed mutex")
-                .acquire(
-                    format!("code_validation:{}", code.code),
-                    || async {
-                        match validator(self, &code.code, test_account).await {
-                            Ok(result) => {
-                                match result {
-                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
-                                        // Code is still considered valid
-                                    },
-                                    _ => {
-                                        debug!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
-                                        codes_to_update.push(code);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
-                            }
-                        }
-
-                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
-                    }
-                ).await;
-
-            if let Err(e) = result {
-                error!("{} Mutex error while validating code {}: {}", log_prefix, code_clone.code, e);
-            }
-        }
-
-        let collection = self.db.mongo.collection::<GameCode>(collection_name);
-        for code in codes_to_update {
-            if let Err(e) = collection
-                .update_one(
-                    doc! { "code": &code.code },
-                    doc! { "$set": { "active": false } },
-                )
-                .await
-            {
-                error!("{} Failed to update code status: {}", log_prefix, e);
-            }
-        }
-    }
-
-    async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+    pub async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hkrpg-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
 
@@ -365,7 +311,7 @@ impl CodeValidationService {
         Ok(result)
     }
 
-    async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+    pub async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hk4e-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
 
@@ -434,5 +380,63 @@ impl CodeValidationService {
 
         debug!("[Genshin] Validation result for code {}: {:?}", code, result);
         Ok(result)
+    }
+
+    async fn process_codes(
+        &self,
+        mut cursor: Cursor<GameCode>,
+        accounts: &[GameAccount],
+        collection_name: &str,
+        validator: for<'a> fn(&'a Self, &'a str, &'a GameAccount) -> Pin<Box<dyn Future<Output = anyhow::Result<ValidationResult>> + Send + 'a>>,
+        log_prefix: &str,
+    ) {
+        let test_account = &accounts[0];
+        let mut codes_to_update = Vec::new();
+
+        while let Ok(Some(code)) = cursor.try_next().await {
+            let code_clone = code.clone();
+            let result = self.db.redis.create_mutex().await
+                .expect("Failed to create distributed mutex")
+                .acquire(
+                    format!("code_validation:{}", code.code),
+                    || async {
+                        match validator(self, &code.code, test_account).await {
+                            Ok(result) => {
+                                match result {
+                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
+                                        // Code is still considered valid
+                                    },
+                                    _ => {
+                                        debug!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
+                                        codes_to_update.push(code);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
+                            }
+                        }
+
+                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                    }
+                ).await;
+
+            if let Err(e) = result {
+                error!("{} Mutex error while validating code {}: {}", log_prefix, code_clone.code, e);
+            }
+        }
+
+        let collection = self.db.mongo.collection::<GameCode>(collection_name);
+        for code in codes_to_update {
+            if let Err(e) = collection
+                .update_one(
+                    doc! { "code": &code.code },
+                    doc! { "$set": { "active": false } },
+                )
+                .await
+            {
+                error!("{} Failed to update code status: {}", log_prefix, e);
+            }
+        }
     }
 }
