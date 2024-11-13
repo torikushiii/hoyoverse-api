@@ -5,7 +5,8 @@ use crate::{
     db::DatabaseConnections,
     types::GameCode,
     config::Settings,
-    services::code_validator::{CodeValidationService, ValidationResult},
+    error::ValidationResult,
+    services::code_validator::CodeValidationService,
 };
 
 pub struct CodeVerificationService {
@@ -30,6 +31,7 @@ impl CodeVerificationService {
             "starrail" => &self.config.game_accounts.starrail,
             "genshin" => &self.config.game_accounts.genshin,
             "zenless" => &self.config.game_accounts.zenless,
+            "themis" => &self.config.game_accounts.themis,
             _ => {
                 error!("[{}] Invalid game type", game_type);
                 return Ok(false);
@@ -47,6 +49,7 @@ impl CodeVerificationService {
             "starrail" => self.validator.validate_starrail_code(&code.code, test_account).await?,
             "genshin" => self.validator.validate_genshin_code(&code.code, test_account).await?,
             "zenless" => self.validator.validate_zenless_code(&code.code, test_account).await?,
+            "themis" => self.validator.validate_themis_code(&code.code, test_account).await?,
             _ => return Ok(false),
         };
 

@@ -1,6 +1,7 @@
 mod starrail;
 mod genshin;
 mod zenless;
+mod themis;
 
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
@@ -26,6 +27,7 @@ impl Scheduler {
         starrail::schedule_tasks(&sched, self.db.clone(), self.config.clone()).await?;
         genshin::schedule_tasks(&sched, self.db.clone(), self.config.clone()).await?;
         zenless::schedule_tasks(&sched, self.db.clone(), self.config.clone()).await?;
+        themis::schedule_tasks(&sched, self.db.clone(), self.config.clone()).await?;
 
         info!("Starting scheduler");
         sched.start().await?;

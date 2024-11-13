@@ -5,33 +5,15 @@ use mongodb::{
     Cursor,
 };
 use futures_util::TryStreamExt;
-use tracing::{info, error, debug, warn};
+use tracing::{info, error, debug};
 use crate::{
     db::DatabaseConnections,
-    types::GameCode,
+    types::{GameCode, HoyolabResponse},
     config::{GameAccount, Settings},
+    error::{HoyolabRetcode, ValidationResult},
 };
 use std::future::Future;
 use std::pin::Pin;
-use serde::Deserialize;
-
-#[derive(Debug)]
-pub enum ValidationResult {
-    Valid,
-    AlreadyRedeemed,
-    Expired,
-    Invalid,
-    Cooldown,
-    InvalidCredentials,
-    MaxUsageReached,
-    Unknown(i32, String),
-}
-
-#[derive(Debug, Deserialize)]
-struct HoyolabResponse {
-    retcode: i32,
-    message: String,
-}
 
 pub struct CodeValidationService {
     db: Arc<DatabaseConnections>,
@@ -77,6 +59,7 @@ impl CodeValidationService {
         self.validate_starrail_codes().await;
         self.validate_genshin_codes().await;
         self.validate_zenless_codes().await;
+        self.validate_themis_codes().await;
     }
 
     async fn validate_starrail_codes(&self) {
@@ -163,88 +146,37 @@ impl CodeValidationService {
         ).await;
     }
 
-    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        let client = reqwest::Client::new();
-        let url = "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-
-        let timestamp = chrono::Utc::now().timestamp_millis();
-
-        let response = client
-            .get(url)
-            .header("User-Agent", &self.config.server.user_agent)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
-            .query(&[
-                ("t", &timestamp.to_string()),
-                ("lang", &String::from("en")),
-                ("game_biz", &String::from("nap_global")),
-                ("uid", &account.uid),
-                ("region", &account.region),
-                ("cdkey", &code.to_string()),
-            ])
-            .send()
-            .await?;
-
-        let status = response.status();
-
-        if !status.is_success() {
-            error!("[Zenless] Failed HTTP request for code {}: Status {}", code, status);
-            return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
-        }
-
-        let response_body: HoyolabResponse = response.json().await?;
-
-        let result = match response_body.retcode {
-            0 => ValidationResult::Valid,
-            -2017 | -2018 => {
-                debug!("[Zenless] Code {} is already redeemed", code);
-                ValidationResult::AlreadyRedeemed
-            },
-            -2024 => {
-                debug!("[Zenless] Code {} can only be redeemed in-game", code);
-                ValidationResult::Valid
-            },
-            -2001 => {
-                info!("[Zenless] Code {} is expired", code);
-                ValidationResult::Expired
-            },
-            -2003 => {
-                info!("[Zenless] Code {} is invalid", code);
-                ValidationResult::Invalid
-            },
-            -2016 => {
-                warn!("[Zenless] Code {} is in cooldown", code);
-                ValidationResult::Cooldown
-            },
-            -2011 => {
-                debug!("[Zenless] Code {} requires higher Inter-Knot Level", code);
-                ValidationResult::Valid
-            },
-            -2006 => {
-                info!("[Zenless] Code {} has reached maximum usage limit", code);
-                ValidationResult::MaxUsageReached
-            },
-            -1071 => {
-                error!("[Zenless] Invalid account credentials");
-                ValidationResult::InvalidCredentials
-            },
-            code => {
-                error!("[Zenless] Unknown response code {} for code {}: {}",
-                    code, code, response_body.message);
-                ValidationResult::Unknown(code, response_body.message)
+    async fn validate_themis_codes(&self) {
+        let collection = self.db.mongo.collection::<GameCode>("themis_codes");
+        let active_codes = match collection
+            .find(doc! { "active": true })
+            .await
+        {
+            Ok(cursor) => cursor,
+            Err(e) => {
+                error!("[Themis] Failed to fetch active codes: {}", e);
+                return;
             }
         };
 
-        debug!("[Zenless] Validation result for code {}: {:?}", code, result);
-        Ok(result)
+        let accounts = &self.config.game_accounts.themis;
+        if accounts.is_empty() {
+            debug!("[Themis] No accounts configured for validation");
+            return;
+        }
+
+        self.process_codes(
+            active_codes,
+            accounts,
+            "themis_codes",
+            |service, code, account| Box::pin(service.validate_themis_code(code, account)),
+            "[Themis]",
+        ).await;
     }
 
     pub async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hkrpg-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let response = client
@@ -265,56 +197,64 @@ impl CodeValidationService {
             .send()
             .await?;
 
-        let status = response.status();
+        self.handle_hoyolab_response(response, code, "StarRail").await
+    }
 
-        if !status.is_success() {
-            error!("[StarRail] Failed HTTP request for code {}: Status {}", code, status);
-            return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
-        }
+    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+        let client = reqwest::Client::new();
+        let url = "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
+        let timestamp = chrono::Utc::now().timestamp_millis();
 
-        let response_body: HoyolabResponse = response.json().await?;
+        let response = client
+            .get(url)
+            .header("User-Agent", &self.config.server.user_agent)
+            .header("Cookie", format!(
+                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
+                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
+            ))
+            .query(&[
+                ("t", &timestamp.to_string()),
+                ("lang", &String::from("en")),
+                ("game_biz", &String::from("nap_global")),
+                ("uid", &account.uid),
+                ("region", &account.region),
+                ("cdkey", &String::from(code)),
+            ])
+            .send()
+            .await?;
 
-        let result = match response_body.retcode {
-            0 => ValidationResult::Valid,
-            -2017 | -2018 => {
-                debug!("[StarRail] Code {} is already redeemed", code);
-                ValidationResult::AlreadyRedeemed
-            },
-            -2001 => {
-                info!("[StarRail] Code {} is expired", code);
-                ValidationResult::Expired
-            },
-            -2003 => {
-                info!("[StarRail] Code {} is invalid", code);
-                ValidationResult::Invalid
-            },
-            -2016 => {
-                warn!("[StarRail] Code {} is in cooldown", code);
-                ValidationResult::Cooldown
-            },
-            -2006 => {
-                info!("[StarRail] Code {} has reached maximum usage limit", code);
-                ValidationResult::MaxUsageReached
-            },
-            -1071 => {
-                error!("[StarRail] Invalid account credentials");
-                ValidationResult::InvalidCredentials
-            },
-            code => {
-                error!("[StarRail] Unknown response code {} for code {}: {}",
-                    code, code, response_body.message);
-                ValidationResult::Unknown(code, response_body.message)
-            }
-        };
+        self.handle_hoyolab_response(response, code, "Zenless").await
+    }
 
-        debug!("[StarRail] Validation result for code {}: {:?}", code, result);
-        Ok(result)
+    pub async fn validate_themis_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+        let client = reqwest::Client::new();
+        let url = "https://sg-public-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
+        let timestamp = chrono::Utc::now().timestamp_millis();
+
+        let response = client
+            .get(url)
+            .header("User-Agent", &self.config.server.user_agent)
+            .header("Cookie", format!(
+                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
+                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
+            ))
+            .query(&[
+                ("t", &timestamp.to_string()),
+                ("lang", &String::from("en")),
+                ("game_biz", &String::from("nxx_global")),
+                ("uid", &account.uid),
+                ("region", &account.region),
+                ("cdkey", &String::from(code)),
+            ])
+            .send()
+            .await?;
+
+        self.handle_hoyolab_response(response, code, "Themis").await
     }
 
     pub async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
         let client = reqwest::Client::new();
         let url = "https://sg-hk4e-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-
         let timestamp = chrono::Utc::now().timestamp_millis();
 
         let response = client
@@ -328,7 +268,7 @@ impl CodeValidationService {
                 ("uid", &account.uid),
                 ("region", &account.region),
                 ("lang", &String::from("en")),
-                ("cdkey", &code.to_string()),
+                ("cdkey", &String::from(code)),
                 ("game_biz", &String::from("hk4e_global")),
                 ("sLangKey", &String::from("en-us")),
                 ("t", &timestamp.to_string()),
@@ -336,50 +276,7 @@ impl CodeValidationService {
             .send()
             .await?;
 
-        let status = response.status();
-
-        if !status.is_success() {
-            error!("[Genshin] Failed HTTP request for code {}: Status {}", code, status);
-            return Ok(ValidationResult::Unknown(status.as_u16() as i32, format!("Status {}", status)));
-        }
-
-        let response_body: HoyolabResponse = response.json().await?;
-
-        let result = match response_body.retcode {
-            0 => ValidationResult::Valid,
-            -2017 | -2018 => {
-                debug!("[Genshin] Code {} is already redeemed", code);
-                ValidationResult::AlreadyRedeemed
-            },
-            -2001 => {
-                info!("[Genshin] Code {} is expired", code);
-                ValidationResult::Expired
-            },
-            -2003 => {
-                info!("[Genshin] Code {} is invalid", code);
-                ValidationResult::Invalid
-            },
-            -2016 => {
-                warn!("[Genshin] Code {} is in cooldown", code);
-                ValidationResult::Cooldown
-            },
-            -2006 => {
-                info!("[Genshin] Code {} has reached maximum usage limit", code);
-                ValidationResult::MaxUsageReached
-            },
-            -1071 => {
-                error!("[Genshin] Invalid account credentials");
-                ValidationResult::InvalidCredentials
-            },
-            code => {
-                error!("[Genshin] Unknown response code {} for code {}: {}",
-                    code, code, response_body.message);
-                ValidationResult::Unknown(code, response_body.message)
-            }
-        };
-
-        debug!("[Genshin] Validation result for code {}: {:?}", code, result);
-        Ok(result)
+        self.handle_hoyolab_response(response, code, "Genshin").await
     }
 
     async fn process_codes(
@@ -438,5 +335,32 @@ impl CodeValidationService {
                 error!("{} Failed to update code status: {}", log_prefix, e);
             }
         }
+    }
+
+    async fn handle_hoyolab_response(&self, response: reqwest::Response, code: &str, game: &str) -> anyhow::Result<ValidationResult> {
+        let status = response.status();
+
+        if !status.is_success() {
+            error!("[{}] Failed HTTP request for code {}: Status {}", game, code, status);
+            return Ok(ValidationResult::Unknown(
+                status.as_u16() as i32,
+                format!("Status {}", status)
+            ));
+        }
+
+        let response_body: HoyolabResponse = response.json().await?;
+
+        Ok(HoyolabRetcode::from_code(response_body.retcode)
+            .map(|rc| rc.into_validation_result())
+            .unwrap_or_else(|| {
+                error!(
+                    "[{}] Unknown response code {} for code {}: {}",
+                    game,
+                    response_body.retcode,
+                    code,
+                    response_body.message
+                );
+                ValidationResult::Unknown(response_body.retcode, response_body.message)
+            }))
     }
 }

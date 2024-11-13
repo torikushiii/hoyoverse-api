@@ -1,6 +1,7 @@
 use crate::{types::*, config::Settings};
 use reqwest::Client;
 use tracing::{error, debug};
+use serde::de::DeserializeOwned;
 
 pub const SUPPORTED_LANGUAGES: [&str; 15] = [
     "en-us", "zh-cn", "zh-tw", "de-de", "es-es", "fr-fr", "id-id",
@@ -20,10 +21,7 @@ impl NewsResolver {
         }
     }
 
-    async fn fetch_api<T>(&self, url: &str, params: &[(&str, &str)], lang: &str) -> anyhow::Result<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
+    async fn fetch_data<T: DeserializeOwned>(&self, url: &str, params: &[(&str, &str)], lang: &str) -> anyhow::Result<T> {
         let response = self.client
             .get(url)
             .query(params)
@@ -34,14 +32,14 @@ impl NewsResolver {
             .send()
             .await?;
 
-        let data = response.json::<HoyolabResponse<T>>().await?;
+        let data = response.json::<HoyolabDataResponse<T>>().await?;
         Ok(data.data)
     }
 
     pub async fn fetch_news(&self, lang: &str) -> anyhow::Result<Vec<NewsItem>> {
         let mut all_news = Vec::new();
 
-        match self.fetch_api::<EventList>(
+        match self.fetch_data::<EventList>(
             "https://bbs-api-os.hoyolab.com/community/community_contribution/wapi/event/list",
             &[
                 ("page_size", "15"),
@@ -78,7 +76,7 @@ impl NewsResolver {
         }
 
         for (type_id, type_name) in [(1, "notice"), (3, "info")] {
-            match self.fetch_api::<NewsList>(
+            match self.fetch_data::<NewsList>(
                 "https://bbs-api-os.hoyolab.com/community/post/wapi/getNewsList",
                 &[
                     ("gids", "8"),

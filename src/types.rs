@@ -43,7 +43,15 @@ pub struct NewsItem {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct HoyolabResponse<T> {
+pub struct HoyolabResponse {
+    pub retcode: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HoyolabDataResponse<T> {
+    pub retcode: i32,
+    pub message: String,
     pub data: T,
 }
 

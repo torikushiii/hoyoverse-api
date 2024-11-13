@@ -1,6 +1,6 @@
 # HoYoverse API
 
-A high-performance REST API service that provides redemption codes and news for HoYoverse games including Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero.
+A high-performance REST API service that provides redemption codes and news for HoYoverse games including Genshin Impact, Honkai: Star Rail, Tears of Themis, and Zenless Zone Zero.
 
 ## API Endpoints
 
@@ -35,6 +35,20 @@ https://api.ennead.cc/mihoyo
 - **Get News**
   ```
   GET /starrail/news/{category}?lang={language}
+  ```
+  Categories: `notices`, `events`, `info`
+  Languages: `en` (default), `zh`, `ja`, etc.
+
+#### Tears of Themis
+- **Get Redemption Codes**
+  ```
+  GET /themis/codes
+  ```
+  Returns active and inactive redemption codes for Tears of Themis.
+
+- **Get News**
+  ```
+  GET /themis/news/{category}?lang={language}
   ```
   Categories: `notices`, `events`, `info`
   Languages: `en` (default), `zh`, `ja`, etc.

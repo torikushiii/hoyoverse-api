@@ -44,3 +44,10 @@ game_accounts:
       uid: "800000000"
       nickname: "Main Account"
       region: "prod_gf_eu"
+  themis:
+    - cookie_token_v2: "v2_token_here"
+      account_mid_v2: "mid_v2_here"
+      account_id_v2: "account_id_here"
+      uid: "800000000"
+      nickname: "Main Account"
+      region: "glb_prod_wd01"

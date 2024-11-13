@@ -12,6 +12,7 @@ use crate::utils::datetime::get_uptime;
 mod genshin;
 mod starrail;
 mod zenless;
+mod themis;
 
 pub type AppState = (Arc<DatabaseConnections>, Arc<RateLimiter>);
 
@@ -21,6 +22,7 @@ pub fn mihoyo_routes() -> Router<AppState> {
         .nest("/genshin", genshin::routes())
         .nest("/starrail", starrail::routes())
         .nest("/zenless", zenless::routes())
+        .nest("/themis", themis::routes())
 }
 
 #[derive(Serialize)]
@@ -43,6 +45,8 @@ async fn root_handler() -> Json<ApiInfo> {
             "/mihoyo/starrail/news/{category}".to_string(),
             "/mihoyo/zenless/codes".to_string(),
             "/mihoyo/zenless/news/{category}".to_string(),
+            "/mihoyo/themis/codes".to_string(),
+            "/mihoyo/themis/news/{category}".to_string(),
         ],
     })
 }

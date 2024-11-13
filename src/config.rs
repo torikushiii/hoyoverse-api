@@ -52,6 +52,7 @@ pub struct GameAccounts {
     pub starrail: Vec<GameAccount>,
     pub genshin: Vec<GameAccount>,
     pub zenless: Vec<GameAccount>,
+    pub themis: Vec<GameAccount>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -144,3 +144,73 @@ impl IntoResponse for ApiError {
         resp
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoyolabRetcode {
+    Success = 0,
+    AlreadyRedeemed = -2017,
+    AlreadyRedeemedAlt = -2018,
+    InGameRedemption = -2024,
+    Expired = -2001,
+    Invalid = -2003,
+    Cooldown = -2016,
+    LevelRequirement = -2011,
+    MaxUsageReached = -2006,
+    InvalidCredentials = -1071,
+}
+
+impl HoyolabRetcode {
+    pub fn from_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Success),
+            -2017 => Some(Self::AlreadyRedeemed),
+            -2018 => Some(Self::AlreadyRedeemedAlt),
+            -2024 => Some(Self::InGameRedemption),
+            -2001 => Some(Self::Expired),
+            -2003 => Some(Self::Invalid),
+            -2016 => Some(Self::Cooldown),
+            -2011 => Some(Self::LevelRequirement),
+            -2006 => Some(Self::MaxUsageReached),
+            -1071 => Some(Self::InvalidCredentials),
+            _ => None,
+        }
+    }
+
+    pub fn into_validation_result(self) -> ValidationResult {
+        match self {
+            Self::Success => ValidationResult::Valid,
+            Self::AlreadyRedeemed | Self::AlreadyRedeemedAlt => ValidationResult::AlreadyRedeemed,
+            Self::InGameRedemption => ValidationResult::Valid, // Consider valid if it requires in-game redemption
+            Self::Expired => ValidationResult::Expired,
+            Self::Invalid => ValidationResult::Invalid,
+            Self::Cooldown => ValidationResult::Cooldown,
+            Self::LevelRequirement => ValidationResult::Valid, // Consider valid if it has level requirements
+            Self::MaxUsageReached => ValidationResult::MaxUsageReached,
+            Self::InvalidCredentials => ValidationResult::InvalidCredentials,
+        }
+    }
+
+    pub fn is_valid_code(self) -> bool {
+        matches!(
+            self,
+            Self::Success |
+            Self::AlreadyRedeemed |
+            Self::AlreadyRedeemedAlt |
+            Self::InGameRedemption |
+            Self::Cooldown |
+            Self::LevelRequirement
+        )
+    }
+}
+
+#[derive(Debug)]
+pub enum ValidationResult {
+    Valid,
+    AlreadyRedeemed,
+    Expired,
+    Invalid,
+    Cooldown,
+    InvalidCredentials,
+    MaxUsageReached,
+    Unknown(i32, String),
+}
