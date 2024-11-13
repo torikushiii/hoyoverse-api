@@ -100,12 +100,30 @@ https://api.ennead.cc/mihoyo
 
 The API implements rate limiting to ensure fair usage:
 - 60 requests per minute per IP address
-- Exceeding this limit will result in a `429 Too Many Requests` response
+- Exceeding this limit will result in a response with:
+  ```json
+  {
+    "status": "Too Many Requests",
+    "error_code": 2000,
+    "error": "Too many requests"
+  }
+  ```
 
 ## Error Responses
 
-The API uses standard HTTP status codes:
+The API uses standard HTTP status codes and returns detailed error information:
+
+```json
+{
+    "status": "string",      // HTTP status text
+    "error_code": number,    // API-specific error code
+    "error": "string"        // Human-readable error message
+}
+```
+
+Common status codes:
 - `200`: Success
-- `400`: Bad Request
-- `429`: Too Many Requests
-- `500`: Internal Server Error
+- `400`: Bad Request (error_code: 4000)
+- `404`: Not Found (error_code: 3000)
+- `429`: Too Many Requests (error_code: 2000)
+- `500`: Internal Server Error (error_code: 0)
