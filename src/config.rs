@@ -21,7 +21,6 @@ pub struct RateLimitConfig {
 #[derive(Debug, Deserialize)]
 pub struct RedisConfig {
     pub url: String,
-    pub pool_size: u32,
     pub database: u8,
     pub rate_limit: RateLimitConfig,
 }

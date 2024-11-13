@@ -7,8 +7,7 @@ pub struct MongoConnection {
 
 impl MongoConnection {
     pub async fn new(config: &crate::config::Settings) -> anyhow::Result<Self> {
-        let mut options = ClientOptions::parse(&config.mongodb.url).await?;
-        options.max_pool_size = Some(config.redis.pool_size as u32);
+        let options = ClientOptions::parse(&config.mongodb.url).await?;
 
         let client = MongoClient::with_options(options)?;
         let db = client.database(&config.mongodb.database);

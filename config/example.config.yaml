@@ -6,7 +6,6 @@ server:
 
 redis:
   url: "redis://127.0.0.1:6379"
-  pool_size: 5
   database: 1
   rate_limit:
     max_requests: 60
