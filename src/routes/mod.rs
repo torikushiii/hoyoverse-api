@@ -13,6 +13,7 @@ mod genshin;
 mod starrail;
 mod zenless;
 mod themis;
+mod honkai;
 
 pub type AppState = (Arc<DatabaseConnections>, Arc<RateLimiter>);
 
@@ -23,6 +24,7 @@ pub fn mihoyo_routes() -> Router<AppState> {
         .nest("/starrail", starrail::routes())
         .nest("/zenless", zenless::routes())
         .nest("/themis", themis::routes())
+        .nest("/honkai", honkai::routes())
 }
 
 #[derive(Serialize)]
@@ -47,6 +49,8 @@ async fn root_handler() -> Json<ApiInfo> {
             "/mihoyo/zenless/news/{category}".to_string(),
             "/mihoyo/themis/codes".to_string(),
             "/mihoyo/themis/news/{category}".to_string(),
+            "/mihoyo/honkai/codes".to_string(),
+            "/mihoyo/honkai/news/{category}".to_string(),
         ],
     })
 }
