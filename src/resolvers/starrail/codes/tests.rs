@@ -80,8 +80,11 @@ async fn test_fetch_codes() {
         // Each code should have at least one reward
         assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
 
-        // Source should be either game8 or eurogamer
-        assert!(["game8", "eurogamer"].contains(&code.source.as_str()));
+        // Source should be either game8, eurogamer, or prydwen
+        assert!(
+            ["game8", "eurogamer", "prydwen"].contains(&code.source.as_str()),
+            "Invalid source: {}", code.source
+        );
 
         // Should be marked as active
         assert!(code.active);
@@ -113,6 +116,31 @@ async fn test_hoyolab_fetch() {
             assert!(code.active);
 
             println!("Found HoyoLab code: {} with rewards: {:?}", code.code, code.rewards);
+        }
+    }
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_prydwen_fetch() {
+    let config = get_test_config();
+    let codes = prydwen::fetch_codes(&config).await.unwrap();
+
+    if !codes.is_empty() {
+        for code in &codes {
+            // Codes should be uppercase and contain only letters and numbers
+            assert!(code.code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+
+            // Each code should have at least one reward
+            assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+
+            // Source should be correct
+            assert_eq!(code.source, "prydwen");
+
+            // Should be marked as active
+            assert!(code.active);
+
+            println!("Found Prydwen code: {} with rewards: {:?}", code.code, code.rewards);
         }
     }
 }
