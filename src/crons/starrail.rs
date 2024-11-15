@@ -68,21 +68,29 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                                 );
 
                                 if !is_empty {
-                                    match verifier.verify_new_code(&code, "starrail").await {
-                                        Ok(is_active) => {
-                                            debug!(
-                                                "[StarRail][Codes] Code {} verified: active = {}",
-                                                code.code,
-                                                is_active
-                                            );
+                                    let mutex = db.redis.create_mutex().await.expect("Failed to create mutex");
+                                    if let Err(e) = mutex.acquire(
+                                        format!("starrail_code_process:{}", code.code),
+                                        || async {
+                                            match verifier.verify_new_code(&code, "starrail").await {
+                                                Ok(is_active) => {
+                                                    debug!(
+                                                        "[StarRail][Codes] Code {} verified: active = {}",
+                                                        code.code,
+                                                        is_active
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    error!(
+                                                        "[StarRail][Codes] Failed to verify code {}: {}",
+                                                        code.code,
+                                                        e
+                                                    );
+                                                }
+                                            }
                                         }
-                                        Err(e) => {
-                                            error!(
-                                                "[StarRail][Codes] Failed to verify code {}: {}",
-                                                code.code,
-                                                e
-                                            );
-                                        }
+                                    ).await {
+                                        error!("[StarRail][Codes] Mutex error while processing code {}: {}", code.code, e);
                                     }
                                 }
                             }
