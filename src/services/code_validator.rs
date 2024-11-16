@@ -8,9 +8,10 @@ use futures_util::TryStreamExt;
 use tracing::{info, error, debug};
 use crate::{
     db::DatabaseConnections,
-    types::{GameCode, HoyolabResponse},
+    types::GameCode,
     config::{GameAccount, Settings},
-    error::{HoyolabRetcode, ValidationResult},
+    error::ValidationResult,
+    services::validation::{GameValidator, StarRailValidator, GenshinValidator, ZenlessValidator, ThemisValidator},
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -18,11 +19,19 @@ use std::pin::Pin;
 pub struct CodeValidationService {
     db: Arc<DatabaseConnections>,
     config: Arc<Settings>,
+    client: reqwest::Client,
 }
 
 impl CodeValidationService {
     pub fn new(db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Self {
-        Self { db, config }
+        Self {
+            db,
+            config: config.clone(),
+            client: reqwest::Client::builder()
+                .user_agent(&config.server.user_agent)
+                .build()
+                .expect("Failed to create HTTP client"),
+        }
     }
 
     pub async fn start(&self) -> anyhow::Result<()> {
@@ -175,108 +184,19 @@ impl CodeValidationService {
     }
 
     pub async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        let client = reqwest::Client::new();
-        let url = "https://sg-hkrpg-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        let timestamp = chrono::Utc::now().timestamp_millis();
-
-        let response = client
-            .get(url)
-            .header("User-Agent", &self.config.server.user_agent)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
-            .query(&[
-                ("cdkey", code),
-                ("game_biz", "hkrpg_global"),
-                ("lang", "en"),
-                ("region", &account.region),
-                ("t", &timestamp.to_string()),
-                ("uid", &account.uid),
-            ])
-            .send()
-            .await?;
-
-        self.handle_hoyolab_response(response, code, "StarRail").await
-    }
-
-    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        let client = reqwest::Client::new();
-        let url = "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        let timestamp = chrono::Utc::now().timestamp_millis();
-
-        let response = client
-            .get(url)
-            .header("User-Agent", &self.config.server.user_agent)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
-            .query(&[
-                ("t", &timestamp.to_string()),
-                ("lang", &String::from("en")),
-                ("game_biz", &String::from("nap_global")),
-                ("uid", &account.uid),
-                ("region", &account.region),
-                ("cdkey", &String::from(code)),
-            ])
-            .send()
-            .await?;
-
-        self.handle_hoyolab_response(response, code, "Zenless").await
-    }
-
-    pub async fn validate_themis_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        let client = reqwest::Client::new();
-        let url = "https://sg-public-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        let timestamp = chrono::Utc::now().timestamp_millis();
-
-        let response = client
-            .get(url)
-            .header("User-Agent", &self.config.server.user_agent)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
-            .query(&[
-                ("t", &timestamp.to_string()),
-                ("lang", &String::from("en")),
-                ("game_biz", &String::from("nxx_global")),
-                ("uid", &account.uid),
-                ("region", &account.region),
-                ("cdkey", &String::from(code)),
-            ])
-            .send()
-            .await?;
-
-        self.handle_hoyolab_response(response, code, "Themis").await
+        StarRailValidator.validate_code(&self.client, code, account).await
     }
 
     pub async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        let client = reqwest::Client::new();
-        let url = "https://sg-hk4e-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey";
-        let timestamp = chrono::Utc::now().timestamp_millis();
+        GenshinValidator.validate_code(&self.client, code, account).await
+    }
 
-        let response = client
-            .get(url)
-            .header("User-Agent", &self.config.server.user_agent)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
-            .query(&[
-                ("uid", &account.uid),
-                ("region", &account.region),
-                ("lang", &String::from("en")),
-                ("cdkey", &String::from(code)),
-                ("game_biz", &String::from("hk4e_global")),
-                ("sLangKey", &String::from("en-us")),
-                ("t", &timestamp.to_string()),
-            ])
-            .send()
-            .await?;
+    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+        ZenlessValidator.validate_code(&self.client, code, account).await
+    }
 
-        self.handle_hoyolab_response(response, code, "Genshin").await
+    pub async fn validate_themis_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+        ThemisValidator.validate_code(&self.client, code, account).await
     }
 
     async fn process_codes(
@@ -335,32 +255,5 @@ impl CodeValidationService {
                 error!("{} Failed to update code status: {}", log_prefix, e);
             }
         }
-    }
-
-    async fn handle_hoyolab_response(&self, response: reqwest::Response, code: &str, game: &str) -> anyhow::Result<ValidationResult> {
-        let status = response.status();
-
-        if !status.is_success() {
-            error!("[{}] Failed HTTP request for code {}: Status {}", game, code, status);
-            return Ok(ValidationResult::Unknown(
-                status.as_u16() as i32,
-                format!("Status {}", status)
-            ));
-        }
-
-        let response_body: HoyolabResponse = response.json().await?;
-
-        Ok(HoyolabRetcode::from_code(response_body.retcode)
-            .map(|rc| rc.into_validation_result())
-            .unwrap_or_else(|| {
-                error!(
-                    "[{}] Unknown response code {} for code {}: {}",
-                    game,
-                    response_body.retcode,
-                    code,
-                    response_body.message
-                );
-                ValidationResult::Unknown(response_body.retcode, response_body.message)
-            }))
     }
 }
