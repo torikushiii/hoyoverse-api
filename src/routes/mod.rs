@@ -9,6 +9,7 @@ use crate::db::DatabaseConnections;
 use crate::ratelimit::RateLimiter;
 use crate::utils::datetime::get_uptime;
 
+mod utils;
 mod genshin;
 mod starrail;
 mod zenless;
