@@ -13,6 +13,10 @@ pub trait GameValidator {
     fn game_biz(&self) -> &'static str;
     fn game_name(&self) -> &'static str;
 
+    fn should_skip_validation(&self, _code: &str) -> bool {
+        false
+    }
+
     fn build_query_params<'a>(&self, code: &'a str, account: &'a GameAccount, timestamp: i64) -> Vec<(&'static str, String)> {
         vec![
             ("cdkey", code.to_string()),
@@ -25,6 +29,10 @@ pub trait GameValidator {
     }
 
     async fn validate_code(&self, client: &Client, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+        if self.should_skip_validation(code) {
+            return Ok(ValidationResult::Valid);
+        }
+
         let timestamp = chrono::Utc::now().timestamp_millis();
         let query_params = self.build_query_params(code, account, timestamp);
 
@@ -81,6 +89,10 @@ impl GameValidator for StarRailValidator {
     fn game_name(&self) -> &'static str {
         "StarRail"
     }
+
+    fn should_skip_validation(&self, code: &str) -> bool {
+        code == "STARRAILGIFT"
+    }
 }
 
 #[async_trait]
@@ -107,6 +119,10 @@ impl GameValidator for GenshinValidator {
             ("t", timestamp.to_string()),
             ("sLangKey", "en-us".to_string()),
         ]
+    }
+
+    fn should_skip_validation(&self, code: &str) -> bool {
+        code == "GENSHINGIFT"
     }
 }
 
