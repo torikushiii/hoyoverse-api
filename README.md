@@ -1,90 +1,41 @@
 # HoYoverse API
 
-A high-performance REST API service that provides redemption codes and news for HoYoverse games including Genshin Impact, Honkai Impact 3rd, Honkai: Star Rail, Tears of Themis, and Zenless Zone Zero.
+A high-performance REST API service providing redemption codes and news for HoYoverse games:
+- Genshin Impact
+- Honkai: Star Rail
+- Honkai Impact 3rd
+- Tears of Themis
+- Zenless Zone Zero
 
-## API Endpoints
-
-### Base URL
+## Base URL
 ```
 https://api.ennead.cc/mihoyo
 ```
 
-### Available Endpoints
+## Endpoints
 
-#### Honkai Impact 3rd
-- **Get Redemption Codes**
-  ```
-  GET /honkai/codes
-  ```
-  Returns active and inactive redemption codes for Honkai Impact 3rd.
+All games follow the same endpoint pattern:
 
-- **Get News**
-  ```
-  GET /honkai/news/{category}?lang={language}
-  ```
-  Categories: `notices`, `events`, `info`
-  Languages: `en` (default), `zh`, `ja`, etc.
+### Redemption Codes
+```
+GET /{game}/codes
+```
+Returns active and expired redemption codes.
 
-#### Genshin Impact
-- **Get Redemption Codes**
-  ```
-  GET /genshin/codes
-  ```
-  Returns active and inactive redemption codes for Genshin Impact.
+### News
+```
+GET /{game}/news/{category}?lang={language}
+```
+Returns news articles for the specified category and language.
 
-- **Get News**
-  ```
-  GET /genshin/news/{category}?lang={language}
-  ```
-  Categories: `notices`, `events`, `info`
-  Languages: `en` (default), `zh`, `ja`, etc.
+Where:
+- `game`: `genshin`, `starrail`, `honkai`, `themis`, or `zenless`
+- `category`: `notices`, `events`, or `info`
+- `language`: `en` (default), `zh`, `ja`, etc.
 
-#### Honkai: Star Rail
-- **Get Redemption Codes**
-  ```
-  GET /starrail/codes
-  ```
-  Returns active and inactive redemption codes for Star Rail.
+## Response Examples
 
-- **Get News**
-  ```
-  GET /starrail/news/{category}?lang={language}
-  ```
-  Categories: `notices`, `events`, `info`
-  Languages: `en` (default), `zh`, `ja`, etc.
-
-#### Tears of Themis
-- **Get Redemption Codes**
-  ```
-  GET /themis/codes
-  ```
-  Returns active and inactive redemption codes for Tears of Themis.
-
-- **Get News**
-  ```
-  GET /themis/news/{category}?lang={language}
-  ```
-  Categories: `notices`, `events`, `info`
-  Languages: `en` (default), `zh`, `ja`, etc.
-
-#### Zenless Zone Zero
-- **Get Redemption Codes**
-  ```
-  GET /zenless/codes
-  ```
-  Returns active and inactive redemption codes for Zenless Zone Zero.
-
-- **Get News**
-  ```
-  GET /zenless/news/{category}?lang={language}
-  ```
-  Categories: `notices`, `events`, `info`
-  Languages: `en` (default), `zh`, `ja`, etc.
-
-## Response Format
-
-### Codes Endpoint Response
-
+### Codes Response
 ```json
 {
     "active": [
@@ -107,8 +58,7 @@ https://api.ennead.cc/mihoyo
 }
 ```
 
-### News Endpoint Response
-
+### News Response
 ```json
 [
     {
@@ -119,39 +69,30 @@ https://api.ennead.cc/mihoyo
         "banner": [
             "https://example.com/images/banner.jpg"
         ],
-        "createdAt": 1731124812,
+        "createdAt": 1731124812
     }
 ]
 ```
 
-## Rate Limiting
+## Rate Limits
+- 60 requests per minute per IP
+- Exceeding this limit returns a 429 status code
 
-The API implements rate limiting to ensure fair usage:
-- 60 requests per minute per IP address
-- Exceeding this limit will result in a response with:
-  ```json
-  {
-    "status": "Too Many Requests",
-    "error_code": 2000,
-    "error": "Too many requests"
-  }
-  ```
+## Error Codes
 
-## Error Responses
+| Status Code | Error Code | Description |
+|------------|------------|-------------|
+| 200 | - | Success |
+| 400 | 4000 | Bad Request |
+| 404 | 3000 | Not Found |
+| 429 | 2000 | Too Many Requests |
+| 500 | 0 | Internal Server Error |
 
-The API uses standard HTTP status codes and returns detailed error information:
-
+Error Response Format:
 ```json
 {
-    "status": "string",      // HTTP status text
-    "error_code": number,    // API-specific error code
-    "error": "string"        // Human-readable error message
+    "status": "Not Found",
+    "error_code": 3000,
+    "error": "Resource not found"
 }
 ```
-
-Common status codes:
-- `200`: Success
-- `400`: Bad Request (error_code: 4000)
-- `404`: Not Found (error_code: 3000)
-- `429`: Too Many Requests (error_code: 2000)
-- `500`: Internal Server Error (error_code: 0)
