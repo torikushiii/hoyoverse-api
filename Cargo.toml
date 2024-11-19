@@ -7,60 +7,64 @@ default-run = "hoyoverse-api"
 
 [dependencies]
 # Async Runtime
-tokio = { version = "1.38", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
-futures-util = "0.3"
+tokio = { version = "1.41.1", features = ["full"] }
+tokio-stream = { version = "0.1.16", features = ["sync"] }
+futures-util = "0.3.31"
 
 # Web Framework and HTTP
-axum = { version = "0.7", features = ["macros"] }
-tower-http = { version = "0.6.1", features = ["trace", "cors", "request-id", "compression-br", "compression-deflate", "compression-gzip", "compression-zstd"] }
-tower = "0.5.0"
-hyper = { version = "1", features = ["full"] }
-http-body = "1.0"
+axum = { version = "0.7.9", features = ["macros"] }
+tower-http = { version = "0.6.2", features = ["trace", "cors", "request-id", "compression-br", "compression-deflate", "compression-gzip", "compression-zstd"] }
+tower = "0.5.1"
+hyper = { version = "1.5.0", features = ["full"] }
+http-body = "1.0.1"
 
 # Database
-mongodb = { version = "3.0", features = ["snappy-compression", "zlib-compression", "zstd-compression"] }
-bson = { version = "2.11", features = ["chrono-0_4"] }
-fred = { version = "9.2.1", features = ["enable-rustls", "metrics", "sentinel-client", "replicas", "i-scripts"] }
+mongodb = { version = "3.1.0", features = ["snappy-compression", "zlib-compression", "zstd-compression"] }
+bson = { version = "2.13.0", features = ["chrono-0_4"] }
+fred = { version = "9.4.0", features = ["enable-rustls", "metrics", "sentinel-client", "replicas", "i-scripts"] }
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_repr = "0.1"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"
+serde_repr = "0.1.19"
 
 # HTTP Client
-reqwest = { version = "0.12.8", features = ["json", "rustls-tls", "cookies"], default-features = false }
+reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "cookies"], default-features = false }
 
 # Error Handling
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror = "2.0.3"
+anyhow = "1.0.93"
 
 # Time and Date
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 
 # Logging and Tracing
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
-time = { version = "0.3", features = ["formatting"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "time"] }
+time = { version = "0.3.36", features = ["formatting"] }
 
 # Configuration
-config = { version = "0.14", features = ["yaml"] }
+config = { version = "0.14.1", features = ["yaml"] }
 
 # Utilities
-async-trait = "0.1.80"
-bytes = "1.7.1"
-regex = "1.10.6"
-uuid = { version = "1.7", features = ["v4"] }
-once_cell = "1.18"
+async-trait = "0.1.83"
+bytes = "1.8.0"
+regex = "1.11.1"
+uuid = { version = "1.11.0", features = ["v4"] }
+once_cell = "1.20.2"
 
 # HTML Parsing
-scraper = "0.21"
+scraper = "0.21.0"
 
 # Cron Scheduler
-tokio-cron-scheduler = "0.13"
+tokio-cron-scheduler = "0.13.0"
+
+# MD5 and Random
+md-5 = "0.10.6"
+rand = "0.8.5"
 
 [dev-dependencies]
-tracing-test = "0.2"
+tracing-test = "0.2.5"
 
 [[bin]]
 name = "hoyoverse-api"
