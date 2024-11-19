@@ -28,6 +28,12 @@ GET /{game}/news/{category}?lang={language}
 ```
 Returns news articles for the specified category and language.
 
+### Calendar (Genshin Impact and Star Rail only)
+```
+GET /{game}/calendar
+```
+Returns current events, banners and challenges for the game. Only available for `genshin` and `starrail`.
+
 Where:
 - `game`: `genshin`, `starrail`, `honkai`, `themis`, or `zenless`
 - `category`: `notices`, `events`, or `info`
@@ -72,6 +78,57 @@ Where:
         "createdAt": 1731124812
     }
 ]
+```
+
+### Calendar Response
+```json
+{
+    "events": [
+        {
+            "id": 46,
+            "name": "Gift of Odyssey",
+            "description": "",
+            "type_name": "ActivityTypeSign",
+            "start_time": 1729479600,
+            "end_time": 1733194799,
+            "rewards": [
+                {
+                    "id": 102,
+                    "name": "Star Rail Special Pass",
+                    "icon": "https://example.com/icon.png",
+                    "rarity": "5",
+                    "amount": 10
+                }
+            ]
+        }
+    ],
+    "banners": [
+        {
+            "id": "12",
+            "name": "",
+            "version": "2.6",
+            "characters": [
+                {
+                    "id": "1308",
+                    "name": "Acheron",
+                    "rarity": "5",
+                    "element": "lightning"
+                }
+            ],
+            "start_time": 1731495600,
+            "end_time": 1733234400
+        }
+    ],
+    "challenges": [
+        {
+            "id": 2010,
+            "name": "Rumor Mill",
+            "type_name": "ChallengeTypeStory",
+            "start_time": 1731294000,
+            "end_time": 1734922800
+        }
+    ]
+}
 ```
 
 ## Rate Limits

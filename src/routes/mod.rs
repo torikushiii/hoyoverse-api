@@ -44,8 +44,10 @@ async fn root_handler() -> Json<ApiInfo> {
         endpoints: vec![
             "/mihoyo/genshin/codes".to_string(),
             "/mihoyo/genshin/news/{category}".to_string(),
+            "/mihoyo/genshin/calendar".to_string(),
             "/mihoyo/starrail/codes".to_string(),
             "/mihoyo/starrail/news/{category}".to_string(),
+            "/mihoyo/starrail/calendar".to_string(),
             "/mihoyo/zenless/codes".to_string(),
             "/mihoyo/zenless/news/{category}".to_string(),
             "/mihoyo/themis/codes".to_string(),
