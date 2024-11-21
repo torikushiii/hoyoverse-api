@@ -20,11 +20,24 @@ pub struct NewsQuery {
     pub lang: Option<String>,
 }
 
+pub async fn log_endpoint_metrics(
+    endpoint: &str,
+    state: &AppState,
+) {
+    let (db, _) = state;
+    if let Err(e) = db.redis.log_endpoint_hit(endpoint).await {
+        error!("Failed to log endpoint metrics: {}", e);
+    }
+}
+
 pub async fn handle_codes(
     game_name: &str,
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<CodesResponse>, ApiError> {
+    let endpoint = format!("/{}/codes", game_name);
+    log_endpoint_metrics(&endpoint, &state).await;
+
     let (db, rate_limiter) = state;
     debug!("Handling request for /{}/codes", game_name);
 
@@ -108,6 +121,9 @@ pub async fn handle_news(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<NewsItemResponse>>, ApiError> {
+    let endpoint = format!("/{}/news/{}", game_name, category);
+    log_endpoint_metrics(&endpoint, &state).await;
+
     let (db, rate_limiter) = state;
     debug!("Handling request for /{}/news/{}", game_name, category);
 

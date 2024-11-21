@@ -98,6 +98,33 @@ impl RedisConnection {
         Ok(())
     }
 
+    pub async fn log_endpoint_hit(&self, endpoint: &str) -> anyhow::Result<()> {
+        let now = OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .unwrap_or_default();
+
+        self.client.hincrby::<i64, _, _>(
+            "metrics:endpoints",
+            endpoint,
+            1
+        ).await?;
+
+        let timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as f64;
+        let entry = vec![(timestamp, format!("{}:{}", now, endpoint))];
+
+        self.client.zadd::<bool, _, _>(
+            "metrics:endpoints:timeline",
+            None,
+            None,
+            false,
+            false,
+            entry
+        ).await?;
+
+        tracing::debug!("Logged endpoint hit: {}", endpoint);
+        Ok(())
+    }
+
     pub fn from_client(
         client: RedisClient,
         rate_limit_config: crate::config::RateLimitConfig

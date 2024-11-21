@@ -42,6 +42,9 @@ async fn calendar(
     State((db, rate_limiter)): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<CalendarResponse>, ApiError> {
+    let endpoint = "/genshin/calendar";
+    utils::log_endpoint_metrics(endpoint, &(db.clone(), rate_limiter.clone())).await;
+
     debug!("Handling request for /genshin/calendar");
 
     let rate_limit = rate_limiter

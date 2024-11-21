@@ -2,6 +2,7 @@ use axum::{
     Router,
     routing::get,
     response::Json,
+    extract::State,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -36,7 +37,11 @@ struct ApiInfo {
     endpoints: Vec<String>,
 }
 
-async fn root_handler() -> Json<ApiInfo> {
+async fn root_handler(
+    state: State<AppState>
+) -> Json<ApiInfo> {
+    utils::log_endpoint_metrics("/", &state.0).await;
+
     Json(ApiInfo {
         message: "Welcome to the HoYoverse API!",
         version: env!("CARGO_PKG_VERSION"),

@@ -44,6 +44,9 @@ async fn calendar(
     State((db, rate_limiter)): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<CalendarResponse>, ApiError> {
+    let endpoint = "/starrail/calendar";
+    utils::log_endpoint_metrics(endpoint, &(db.clone(), rate_limiter.clone())).await;
+
     debug!("Handling request for /starrail/calendar");
 
     let rate_limit = rate_limiter
