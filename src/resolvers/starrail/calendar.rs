@@ -59,27 +59,30 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
     let data = calendar.data.ok_or_else(|| anyhow::anyhow!("No calendar data"))?;
 
     let mut banners = Vec::new();
-    for pool in data.avatar_card_pool_list {
-        let start_time = pool.time_info.start_ts.parse::<i64>()?;
-        let end_time = pool.time_info.end_ts.parse::<i64>()?;
+    for pool in data.avatar_card_pool_list.into_iter()
+        .chain(data.equip_card_pool_list) {
+            let start_time = pool.time_info.start_ts.parse::<i64>()?;
+            let end_time = pool.time_info.end_ts.parse::<i64>()?;
 
-        banners.push(Banner {
-            id: pool.id,
-            name: pool.name,
-            version: pool.version,
-            characters: pool.avatar_list.into_iter()
+            let characters = pool.avatar_list.into_iter()
                 .map(|char| Character {
                     id: char.item_id,
                     name: char.item_name,
                     rarity: char.rarity,
-                    element: char.damage_type_name,
-                    path: char.avatar_base_type,
+                    element: char.damage_type,
+                    path: Some(char.avatar_base_type),
                     icon: char.icon_url,
                 })
-                .collect(),
-            start_time,
-            end_time,
-        });
+                .collect();
+
+            banners.push(Banner {
+                id: pool.id,
+                name: pool.name,
+                version: pool.version,
+                characters,
+                start_time,
+                end_time,
+            });
     }
 
     let mut events = Vec::new();

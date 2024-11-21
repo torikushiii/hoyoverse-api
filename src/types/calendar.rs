@@ -35,8 +35,9 @@ pub struct Character {
     pub name: String,
     pub rarity: String,
     pub element: String,
-    pub path: String,
     pub icon: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

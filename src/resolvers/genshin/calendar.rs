@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::{
     types::{
         GenshinCalendarResponse,
-        calendar::{CalendarResponse, Event, Banner, Challenge, Reward},
+        calendar::{CalendarResponse, Event, Banner, Challenge, Reward, Character},
     },
     config::Settings,
     utils::generate_ds::generate_ds,
@@ -52,7 +52,13 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         .send()
         .await?;
 
-    let calendar: GenshinCalendarResponse = response.json().await?;
+    let response_text = response.text().await?;
+
+    let calendar: GenshinCalendarResponse = serde_json::from_str(&response_text)
+        .map_err(|e| {
+            error!("Failed to parse calendar response: {}\nResponse body: {}", e, response_text);
+            anyhow::anyhow!("Failed to parse calendar response: {}", e)
+        })?;
 
     if calendar.retcode != 0 {
         error!("Failed to fetch calendar data: {}", calendar.message);
@@ -69,11 +75,36 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
             let start_time = pool.start_timestamp.parse::<i64>()?;
             let end_time = pool.end_timestamp.parse::<i64>()?;
 
+            // Transform characters or weapons into Character structs
+            let characters = if !pool.avatars.is_empty() {
+                pool.avatars.into_iter()
+                    .map(|char| Character {
+                        id: char.id.to_string(),
+                        name: char.name,
+                        rarity: char.rarity.to_string(),
+                        element: char.element,
+                        path: None,
+                        icon: char.icon,
+                    })
+                    .collect()
+            } else {
+                pool.weapon.into_iter()
+                    .map(|weapon| Character {
+                        id: weapon.id.to_string(),
+                        name: weapon.name,
+                        rarity: weapon.rarity.to_string(),
+                        element: String::new(), // Weapons don't have elements
+                        path: None,
+                        icon: weapon.icon,
+                    })
+                    .collect()
+            };
+
             banners.push(Banner {
-                id: pool.id,
+                id: pool.id.to_string(),
                 name: pool.name,
                 version: pool.version,
-                characters: Vec::new(), // Genshin API doesn't provide character details for now
+                characters,
                 start_time,
                 end_time,
             });
