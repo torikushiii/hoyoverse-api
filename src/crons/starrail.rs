@@ -72,6 +72,8 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                                     if let Err(e) = mutex.acquire(
                                         format!("starrail_code_process:{}", code.code),
                                         || async {
+                                            tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+
                                             match verifier.verify_new_code(&code, "starrail").await {
                                                 Ok(is_active) => {
                                                     debug!(

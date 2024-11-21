@@ -68,21 +68,31 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                                 );
 
                                 if !is_empty {
-                                    match verifier.verify_new_code(&code, "genshin").await {
-                                        Ok(is_active) => {
-                                            debug!(
-                                                "[Genshin][Codes] Code {} verified: active = {}",
-                                                code.code,
-                                                is_active
-                                            );
+                                    let mutex = db.redis.create_mutex().await.expect("Failed to create mutex");
+                                    if let Err(e) = mutex.acquire(
+                                        format!("genshin_code_process:{}", code.code),
+                                        || async {
+                                            tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+
+                                            match verifier.verify_new_code(&code, "genshin").await {
+                                                Ok(is_active) => {
+                                                    debug!(
+                                                        "[Genshin][Codes] Code {} verified: active = {}",
+                                                        code.code,
+                                                        is_active
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    error!(
+                                                        "[Genshin][Codes] Failed to verify code {}: {}",
+                                                        code.code,
+                                                        e
+                                                    );
+                                                }
+                                            }
                                         }
-                                        Err(e) => {
-                                            error!(
-                                                "[Genshin][Codes] Failed to verify code {}: {}",
-                                                code.code,
-                                                e
-                                            );
-                                        }
+                                    ).await {
+                                        error!("[Genshin][Codes] Mutex error while processing code {}: {}", code.code, e);
                                     }
                                 }
                             }
