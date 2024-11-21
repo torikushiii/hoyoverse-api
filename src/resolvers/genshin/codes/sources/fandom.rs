@@ -2,7 +2,7 @@ use crate::{types::GameCode, config::Settings};
 use reqwest::Client;
 use scraper::{Html, Selector, ElementRef};
 use anyhow::Context;
-use tracing::{debug, warn};
+use tracing::{debug, warn, error};
 use chrono::Utc;
 use regex::Regex;
 
@@ -19,8 +19,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let html = response.text().await?;
     let document = Html::parse_document(&html);
 
-    let active_codes_selector = Selector::parse("#Active_Codes").unwrap();
-    let table_selector = Selector::parse("#mw-content-text > div > table").unwrap();
+    let table_selector = Selector::parse("table.wikitable.sortable.tdl3.tdl4").unwrap();
     let row_selector = Selector::parse("tr").unwrap();
     let cell_selector = Selector::parse("td").unwrap();
     let code_selector = Selector::parse("code").unwrap();
@@ -28,25 +27,24 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let mut codes = Vec::new();
     let current_time = Utc::now();
 
-    if let Some(active_section) = document.select(&active_codes_selector).next() {
-        if let Some(table) = document.select(&table_selector)
-            .find(|t| {
-                t.html().as_bytes().as_ptr() as usize >
-                active_section.html().as_bytes().as_ptr() as usize
-            })
-        {
-            let mut rows = table.select(&row_selector);
-            rows.next();
+    let tables: Vec<ElementRef> = document.select(&table_selector).collect();
 
-            for row in rows {
-                let cells: Vec<ElementRef> = row.select(&cell_selector).collect();
-                if cells.len() >= 3 {
-                    let code = extract_code(&cells[0], &code_selector);
-                    let server = cells[1].text().collect::<String>().trim().to_lowercase();
+    if let Some(table) = tables.first() {
+        let mut rows = table.select(&row_selector);
+        rows.next();
 
-                    // Only process codes for "all" servers and non-empty codes
-                    if server == "all" && !code.is_empty() {
-                        // Parse rewards using regex to match item names followed by "×" and numbers
+        for row in rows {
+            let cells: Vec<ElementRef> = row.select(&cell_selector).collect();
+            if cells.len() >= 3 {
+                let server = cells[1].text().collect::<String>().trim().to_lowercase();
+                if server == "all" {
+                    let code_elements: Vec<String> = cells[0]
+                        .select(&code_selector)
+                        .map(|el| el.text().collect::<String>().trim().to_uppercase())
+                        .filter(|code| !code.is_empty())
+                        .collect();
+
+                    for code in code_elements {
                         let rewards_text = cells[2].text().collect::<String>();
                         if let Some(rewards) = parse_rewards(&rewards_text) {
                             codes.push(GameCode {
@@ -65,29 +63,16 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     if codes.is_empty() {
-        // sometimes it returns empty for some reason
         warn!("[Genshin][Codes][Fandom] No active codes found");
+        error!("[Genshin][Codes][Fandom] Tables found: {}", tables.len());
+        if let Some(table) = tables.first() {
+            error!("[Genshin][Codes][Fandom] First table HTML: {}", table.html());
+        }
     } else {
         debug!("[Genshin][Codes][Fandom] Found {} active codes", codes.len());
     }
 
     Ok(codes)
-}
-
-fn extract_code(cell: &ElementRef, code_selector: &Selector) -> String {
-    // First try to find the code element
-    if let Some(code_element) = cell.select(code_selector).next() {
-        code_element.text().collect::<String>().trim().to_string()
-    } else {
-        // Fallback: split by newline or quote and take the first part
-        cell.text()
-            .collect::<String>()
-            .split(|c| c == '\n' || c == '"')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string()
-    }
 }
 
 fn parse_rewards(rewards_text: &str) -> Option<Vec<String>> {
