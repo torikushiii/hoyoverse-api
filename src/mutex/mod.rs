@@ -56,16 +56,23 @@ impl DistributedMutex {
         for attempt in 0..max_attempts {
             let args: Vec<String> = vec![lock_id.clone(), "30".to_string()];
             match self.lock_fn
-                .fcall::<bool, _, _, Vec<String>>(&self.redis, &[&key], args)
+                .fcall::<i64, _, _, Vec<String>>(&self.redis, &[&key], args)
                 .await
             {
-                Ok(true) => {
+                Ok(1) => {
                     acquired = true;
                     debug!("Acquired mutex lock for key '{}' on attempt {}", key, attempt + 1);
                     break;
                 }
-                Ok(false) => {
+                Ok(0) => {
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+                Ok(_) => {
+                    error!("Unexpected return value from mutex lock");
+                    return Err(MutexError::Redis(fred::error::RedisError::new(
+                        fred::error::RedisErrorKind::Parse,
+                        "Unexpected return value from mutex lock",
+                    )));
                 }
                 Err(e) => {
                     error!("Redis error while acquiring mutex: {}", e);
@@ -83,15 +90,22 @@ impl DistributedMutex {
         // Release the lock
         let args: Vec<String> = vec![lock_id];
         match self.unlock_fn
-            .fcall::<bool, _, _, Vec<String>>(&self.redis, &[&key], args)
+            .fcall::<i64, _, _, Vec<String>>(&self.redis, &[&key], args)
             .await
         {
-            Ok(true) => {
+            Ok(1) => {
                 debug!("Released mutex lock for key '{}'", key);
             }
-            Ok(false) => {
+            Ok(0) => {
                 error!("Failed to release mutex lock for key '{}' - lock was lost", key);
                 return Err(MutexError::LockLost);
+            }
+            Ok(_) => {
+                error!("Unexpected return value from mutex unlock");
+                return Err(MutexError::Redis(fred::error::RedisError::new(
+                    fred::error::RedisErrorKind::Parse,
+                    "Unexpected return value from mutex unlock",
+                )));
             }
             Err(e) => {
                 error!("Redis error while releasing mutex: {}", e);

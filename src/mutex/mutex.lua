@@ -8,13 +8,13 @@ local function lock(keys, args)
     local current = redis.call('get', key)
     if current == lock_id then
         redis.call('expire', key, ttl)
-        return true
+        return 1
     elseif current then
-        return false
+        return 0
     end
 
     local ok = redis.call('set', key, lock_id, 'NX', 'EX', ttl)
-    return ok and true or false
+    return ok and 1 or 0
 end
 
 local function unlock(keys, args)
@@ -24,10 +24,10 @@ local function unlock(keys, args)
     local current = redis.call('get', key)
     if current == lock_id then
         redis.call('del', key)
-        return true
+        return 1
     end
 
-    return false
+    return 0
 end
 
 redis.register_function('mutex_lock', lock)
