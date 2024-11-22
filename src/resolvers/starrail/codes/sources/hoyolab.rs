@@ -36,8 +36,26 @@ struct Bonus {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IconBonus {
+    #[serde(deserialize_with = "deserialize_number_or_string")]
     bonus_num: String,
     icon_url: String,
+}
+
+fn deserialize_number_or_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NumberOrString {
+        Number(i64),
+        String(String),
+    }
+
+    match NumberOrString::deserialize(deserializer)? {
+        NumberOrString::Number(n) => Ok(n.to_string()),
+        NumberOrString::String(s) => Ok(s),
+    }
 }
 
 static REWARD_HASHES: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
