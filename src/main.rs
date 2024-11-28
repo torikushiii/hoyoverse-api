@@ -29,14 +29,19 @@ use hoyoverse_api::{
 
 use hoyoverse_api::utils::datetime::set_start_time;
 
+const CONTENT_TYPE: HeaderName = HeaderName::from_static("content-type");
+const X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
+
 #[derive(Clone)]
 struct TraceRequestId;
 
 impl MakeRequestId for TraceRequestId {
     fn make_request_id<B>(&mut self, _: &Request<B>) -> Option<RequestId> {
+        const UUID_ERROR_MSG: &str = "UUID should be valid header value";
+
         Some(RequestId::new(
             HeaderValue::from_str(&Uuid::new_v4().to_string())
-                .expect("UUID should be valid header value")
+                .expect(UUID_ERROR_MSG)
         ))
     }
 }
@@ -108,10 +113,10 @@ async fn main() -> anyhow::Result<()> {
             ))
             .allow_methods(AllowMethods::list([Method::GET]))
             .allow_headers(AllowHeaders::list([
-                HeaderName::from_static("content-type"),
-                HeaderName::from_static("x-request-id"),
+                CONTENT_TYPE,
+                X_REQUEST_ID,
             ]))
-            .max_age(Duration::from_secs(7200))
+            .max_age(const { Duration::from_secs(7200) })
     };
 
     let compression_layer = CompressionLayer::new()
