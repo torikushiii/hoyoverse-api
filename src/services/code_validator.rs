@@ -220,11 +220,11 @@ impl CodeValidationService {
                         match validator(self, &code.code, test_account).await {
                             Ok(result) => {
                                 match result {
-                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
+                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown | ValidationResult::InvalidCredentials => {
                                         // Code is still considered valid
                                     },
                                     _ => {
-                                        debug!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
+                                        info!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
                                         codes_to_update.push(code);
                                     }
                                 }
