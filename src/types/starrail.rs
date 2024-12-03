@@ -9,8 +9,8 @@ pub struct StarRailCalendarResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct StarRailCalendarData {
-    pub avatar_card_pool_list: Vec<BannerPool>,
-    pub equip_card_pool_list: Vec<BannerPool>,
+    pub avatar_card_pool_list: Vec<CharacterBannerPool>,
+    pub equip_card_pool_list: Vec<LightConeBannerPool>,
     pub act_list: Vec<GameEvent>,
     pub challenge_list: Vec<GameChallenge>,
     pub now: String,
@@ -18,12 +18,27 @@ pub struct StarRailCalendarData {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BannerPool {
+pub struct CharacterBannerPool {
     pub name: String,
     #[serde(rename = "type")]
     pub pool_type: String,
     pub avatar_list: Vec<Character>,
-    pub equip_list: Vec<Equipment>,
+    #[serde(default)]
+    pub equip_list: Vec<LightCone>,
+    pub is_after_version: bool,
+    pub time_info: TimeInfo,
+    pub version: String,
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LightConeBannerPool {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub pool_type: String,
+    #[serde(default)]
+    pub avatar_list: Vec<Character>,
+    pub equip_list: Vec<LightCone>,
     pub is_after_version: bool,
     pub time_info: TimeInfo,
     pub version: String,
@@ -45,10 +60,11 @@ pub struct Character {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Equipment {
+pub struct LightCone {
     pub item_id: String,
     pub item_name: String,
-    pub item_url: String,
+    #[serde(rename = "item_url")]
+    pub icon_url: String,
     pub avatar_base_type: String,
     pub rarity: String,
     pub is_forward: bool,

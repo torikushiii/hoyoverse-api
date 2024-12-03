@@ -3,7 +3,7 @@ pub mod news;
 pub mod calendar;
 
 use crate::{
-    types::{GameCode, NewsItem, CalendarResponse},
+    types::{GameCode, NewsItem, calendar::StarRailCalendarResponse},
     config::Settings,
 };
 
@@ -18,7 +18,7 @@ impl StarRailResolver {
         news::fetch_news(config, category).await
     }
 
-    pub async fn fetch_calendar(config: &Settings) -> anyhow::Result<CalendarResponse> {
+    pub async fn fetch_calendar(config: &Settings) -> anyhow::Result<StarRailCalendarResponse> {
         calendar::fetch_calendar(config).await
     }
 }

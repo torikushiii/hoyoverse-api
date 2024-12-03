@@ -6,7 +6,7 @@ use axum::{
     response::Json,
 };
 use crate::{
-    types::{CodesResponse, NewsItemResponse, CalendarResponse},
+    types::{CodesResponse, NewsItemResponse, calendar::StarRailCalendarResponse},
     resolvers::starrail::StarRailResolver,
     error::ApiError,
     config::Settings,
@@ -43,7 +43,7 @@ async fn news(
 async fn calendar(
     State((db, rate_limiter)): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<CalendarResponse>, ApiError> {
+) -> Result<Json<StarRailCalendarResponse>, ApiError> {
     let endpoint = "/starrail/calendar";
     utils::log_endpoint_metrics(endpoint, &(db.clone(), rate_limiter.clone())).await;
 
@@ -72,7 +72,7 @@ async fn calendar(
         .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
 
     if let Some(data) = cached_data {
-        if let Ok(calendar) = serde_json::from_str::<CalendarResponse>(&data) {
+        if let Ok(calendar) = serde_json::from_str::<StarRailCalendarResponse>(&data) {
             debug!("Returning cached calendar data");
             return Ok(Json(calendar));
         }

@@ -4,8 +4,8 @@ use tracing::{debug, error};
 
 use crate::{
     types::{
-        StarRailCalendarResponse,
-        calendar::{CalendarResponse, Event, Banner, Character, Challenge, Reward},
+        StarRailCalendarResponse as ApiResponse,
+        calendar::{StarRailCalendarResponse, Event, StarRailBanner, Character, Challenge, Reward, LightCone},
     },
     config::Settings,
     utils::generate_ds::generate_ds,
@@ -13,7 +13,7 @@ use crate::{
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
 
-pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
+pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarResponse> {
     debug!("Fetching StarRail calendar data");
 
     let account = config.game_accounts.starrail.first()
@@ -49,7 +49,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         .send()
         .await?;
 
-    let calendar: StarRailCalendarResponse = response.json().await?;
+    let calendar: ApiResponse = response.json().await?;
 
     if calendar.retcode != 0 {
         error!("Failed to fetch calendar data: {}", calendar.message);
@@ -59,30 +59,56 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
     let data = calendar.data.ok_or_else(|| anyhow::anyhow!("No calendar data"))?;
 
     let mut banners = Vec::new();
-    for pool in data.avatar_card_pool_list.into_iter()
-        .chain(data.equip_card_pool_list) {
-            let start_time = pool.time_info.start_ts.parse::<i64>()?;
-            let end_time = pool.time_info.end_ts.parse::<i64>()?;
+    
+    for pool in data.avatar_card_pool_list {
+        let start_time = pool.time_info.start_ts.parse::<i64>()?;
+        let end_time = pool.time_info.end_ts.parse::<i64>()?;
 
-            let characters = pool.avatar_list.into_iter()
-                .map(|char| Character {
-                    id: char.item_id,
-                    name: char.item_name,
-                    rarity: char.rarity,
-                    element: char.damage_type,
-                    path: Some(char.avatar_base_type),
-                    icon: char.icon_url,
-                })
-                .collect();
+        let characters = pool.avatar_list.into_iter()
+            .map(|char| Character {
+                id: char.item_id,
+                name: char.item_name,
+                rarity: char.rarity,
+                element: char.damage_type,
+                path: Some(char.avatar_base_type),
+                icon: char.icon_url,
+            })
+            .collect();
 
-            banners.push(Banner {
-                id: pool.id,
-                name: pool.name,
-                version: pool.version,
-                characters,
-                start_time,
-                end_time,
-            });
+        banners.push(StarRailBanner {
+            id: pool.id,
+            name: pool.name,
+            version: pool.version,
+            characters,
+            light_cones: Vec::new(),
+            start_time,
+            end_time,
+        });
+    }
+
+    for pool in data.equip_card_pool_list {
+        let start_time = pool.time_info.start_ts.parse::<i64>()?;
+        let end_time = pool.time_info.end_ts.parse::<i64>()?;
+
+        let light_cones = pool.equip_list.into_iter()
+            .map(|cone| LightCone {
+                id: cone.item_id,
+                name: cone.item_name,
+                rarity: cone.rarity,
+                path: cone.avatar_base_type,
+                icon: cone.icon_url,
+            })
+            .collect();
+
+        banners.push(StarRailBanner {
+            id: pool.id,
+            name: pool.name,
+            version: pool.version,
+            characters: Vec::new(),
+            light_cones,
+            start_time,
+            end_time,
+        });
     }
 
     let mut events = Vec::new();
@@ -158,7 +184,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         });
     }
 
-    Ok(CalendarResponse {
+    Ok(StarRailCalendarResponse {
         events,
         banners,
         challenges,

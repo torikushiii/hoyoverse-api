@@ -3,7 +3,15 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CalendarResponse {
     pub events: Vec<Event>,
-    pub banners: Vec<Banner>,
+    #[serde(rename = "banners")]
+    pub genshin_banners: Vec<GenshinBanner>,
+    pub challenges: Vec<Challenge>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StarRailCalendarResponse {
+    pub events: Vec<Event>,
+    pub banners: Vec<StarRailBanner>,
     pub challenges: Vec<Challenge>,
 }
 
@@ -20,11 +28,27 @@ pub struct Event {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Banner {
+pub struct GenshinBanner {
     pub id: String,
     pub name: String,
     pub version: String,
+    #[serde(default)]
     pub characters: Vec<Character>,
+    #[serde(default)]
+    pub weapons: Vec<GenshinWeapon>,
+    pub start_time: i64,
+    pub end_time: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StarRailBanner {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    #[serde(default)]
+    pub characters: Vec<Character>,
+    #[serde(default)]
+    pub light_cones: Vec<LightCone>,
     pub start_time: i64,
     pub end_time: i64,
 }
@@ -35,9 +59,25 @@ pub struct Character {
     pub name: String,
     pub rarity: String,
     pub element: String,
-    pub icon: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    pub icon: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenshinWeapon {
+    pub id: String,
+    pub name: String,
+    pub rarity: String,
+    pub icon: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LightCone {
+    pub id: String,
+    pub name: String,
+    pub rarity: String,
+    pub path: String,
+    pub icon: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
