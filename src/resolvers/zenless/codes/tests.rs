@@ -39,7 +39,7 @@ async fn test_fetch_all_codes() {
         assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
 
         assert!(
-            ["game8", "gamerant", "pcgamesn", "hoyolab", "dudcode"].contains(&code.source.as_str()),
+            ["game8", "gamerant", "pcgamesn", "hoyolab", "dudcode", "zzz.gg"].contains(&code.source.as_str()),
             "Unknown source: {}",
             code.source
         );
@@ -136,5 +136,26 @@ async fn test_dudcode_fetch() {
         assert!(code.active);
 
         println!("Found DudCode code: {} with rewards: {:?}", code.code, code.rewards);
+    }
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_zzzgg_fetch() {
+    let config = crate::config::Settings::new().unwrap();
+    let codes = zzzgg::fetch_codes(&config).await.unwrap();
+
+    assert!(!codes.is_empty(), "Should fetch at least one code from ZZZ.GG");
+
+    for code in &codes {
+        assert!(code.code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+
+        assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+
+        assert_eq!(code.source, "zzz.gg");
+
+        assert!(code.active);
+
+        println!("Found ZZZ.GG code: {} with rewards: {:?}", code.code, code.rewards);
     }
 }
