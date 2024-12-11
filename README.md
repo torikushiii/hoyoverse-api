@@ -135,6 +135,12 @@ Where:
 - 60 requests per minute per IP
 - Exceeding this limit returns a 429 status code
 
+## Reporting Invalid Codes
+If you find any redemption codes that are incorrectly parsed or have wrong reward information, please [create an issue](https://github.com/torikushiii/hoyoverse-api/issues/new) with:
+- The specific code
+- The game it's for (Genshin, Star Rail, etc.)
+- What's incorrect (wrong rewards, parsing error, etc.)
+
 ## Error Codes
 
 | Status Code | Error Code | Description |
