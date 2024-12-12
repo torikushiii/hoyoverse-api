@@ -122,4 +122,56 @@ impl WebhookService {
             Ok(()) // Silently succeed if no webhook URL is configured
         }
     }
+
+    pub async fn send_invalid_credentials_notification(&self, game_type: &str) -> anyhow::Result<()> {
+        if let Some(webhook_url) = self.config.discord.webhook_url.as_ref() {
+            let color = 0xFF0000;
+
+            let game_name = match game_type {
+                "starrail" => "Honkai: Star Rail",
+                "genshin" => "Genshin Impact",
+                "themis" => "Tears of Themis",
+                "zenless" => "Zenless Zone Zero",
+                _ => game_type,
+            };
+
+            let embed = DiscordEmbed {
+                title: format!("⚠️ Invalid Credentials - {}", game_name),
+                description: format!(
+                    "The account credentials for {} are invalid or expired. Code verification for this game will be skipped until credentials are updated.",
+                    game_name
+                ),
+                color,
+                fields: vec![],
+            };
+
+            let payload = WebhookPayload {
+                embeds: vec![embed],
+            };
+
+            match self.client.post(webhook_url).json(&payload).send().await {
+                Ok(response) if response.status().is_success() => {
+                    Ok(())
+                }
+                Ok(response) => {
+                    error!(
+                        "[{}] Failed to send invalid credentials notification. Status: {}",
+                        game_type,
+                        response.status()
+                    );
+                    Err(anyhow::anyhow!("Failed to send invalid credentials notification"))
+                }
+                Err(e) => {
+                    error!(
+                        "[{}] Error sending invalid credentials notification: {}",
+                        game_type,
+                        e
+                    );
+                    Err(anyhow::anyhow!("Error sending invalid credentials notification"))
+                }
+            }
+        } else {
+            Ok(())
+        }
+    }
 }

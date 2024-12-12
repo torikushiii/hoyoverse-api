@@ -12,6 +12,7 @@ use crate::{
     config::{GameAccount, Settings},
     error::ValidationResult,
     services::validation::{GameValidator, StarRailValidator, GenshinValidator, ZenlessValidator, ThemisValidator},
+    services::webhook::WebhookService,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -20,17 +21,19 @@ pub struct CodeValidationService {
     db: Arc<DatabaseConnections>,
     config: Arc<Settings>,
     client: reqwest::Client,
+    webhook: WebhookService,
 }
 
 impl CodeValidationService {
     pub fn new(db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Self {
         Self {
-            db,
+            db: db.clone(),
             config: config.clone(),
             client: reqwest::Client::builder()
                 .user_agent(&config.server.user_agent)
                 .build()
                 .expect("Failed to create HTTP client"),
+            webhook: WebhookService::new(config),
         }
     }
 
@@ -50,7 +53,7 @@ impl CodeValidationService {
         let db = self.db.clone();
         let config = self.config.clone();
 
-        sched.add(Job::new_async("0 */30 * * * *", move |_, _| {
+        sched.add(Job::new_async("0 * * * * *", move |_, _| {
             let db = db.clone();
             let config = config.clone();
             Box::pin(async move {
@@ -210,6 +213,30 @@ impl CodeValidationService {
         let test_account = &accounts[0];
         let mut codes_to_update = Vec::new();
 
+        if let Some(first_code) = cursor.try_next().await.ok().flatten() {
+            match validator(self, &first_code.code, test_account).await {
+                Ok(ValidationResult::InvalidCredentials) => {
+                    error!("{} Invalid account credentials detected", log_prefix);
+                    if let Err(e) = self.webhook.send_invalid_credentials_notification(
+                        collection_name.split('_').next().unwrap_or("unknown")
+                    ).await {
+                        error!("{} Failed to send invalid credentials notification: {}", log_prefix, e);
+                    }
+                    return;
+                }
+                Ok(_) => {
+                    cursor = self.db.mongo.collection::<GameCode>(collection_name)
+                        .find(doc! { "active": true })
+                        .await
+                        .expect("Failed to recreate cursor");
+                }
+                Err(e) => {
+                    error!("{} Error validating first code: {}", log_prefix, e);
+                    return;
+                }
+            }
+        }
+
         while let Ok(Some(code)) = cursor.try_next().await {
             let code_clone = code.clone();
             let result = self.db.redis.create_mutex().await
@@ -220,8 +247,12 @@ impl CodeValidationService {
                         match validator(self, &code.code, test_account).await {
                             Ok(result) => {
                                 match result {
-                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown | ValidationResult::InvalidCredentials => {
+                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
                                         // Code is still considered valid
+                                    },
+                                    ValidationResult::InvalidCredentials => {
+                                        error!("{} Invalid credentials detected during validation", log_prefix);
+                                        return;
                                     },
                                     _ => {
                                         info!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
@@ -243,6 +274,7 @@ impl CodeValidationService {
             }
         }
 
+        // Update invalid codes in database
         let collection = self.db.mongo.collection::<GameCode>(collection_name);
         for code in codes_to_update {
             if let Err(e) = collection
