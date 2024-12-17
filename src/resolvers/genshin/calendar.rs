@@ -32,8 +32,8 @@ async fn get_event_data(db: &mongodb::Database, event_name: &str) -> Option<(Str
         .await
     {
         let image_url = event.get_str("imageUrl").ok().map(String::from);
-        let start_time = event.get_i64("startTime").ok();
-        let end_time = event.get_i64("endTime").ok();
+        let start_time = event.get_f64("startTime").ok().map(|t| t as i64);
+        let end_time = event.get_f64("endTime").ok().map(|t| t as i64);
 
         image_url.map(|url| (url, start_time, end_time))
     } else {
