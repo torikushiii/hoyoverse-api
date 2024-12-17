@@ -1,6 +1,8 @@
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use tracing::{debug, error};
+use mongodb::bson::doc;
+use regex::escape;
 
 use crate::{
     types::{
@@ -12,6 +14,27 @@ use crate::{
 };
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
+
+async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<String> {
+    let events = db.collection::<mongodb::bson::Document>("events");
+
+    if let Ok(Some(event)) = events
+        .find_one(
+            doc! {
+                "name": {
+                    "$regex": format!(".*{}.*", escape(event_name)),
+                    "$options": "i"
+                },
+                "game": "starrail"
+            }
+        )
+        .await
+    {
+        event.get_str("imageUrl").ok().map(String::from)
+    } else {
+        None
+    }
+}
 
 pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarResponse> {
     debug!("Fetching StarRail calendar data");
@@ -59,7 +82,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarRespons
     let data = calendar.data.ok_or_else(|| anyhow::anyhow!("No calendar data"))?;
 
     let mut banners = Vec::new();
-    
+
     for pool in data.avatar_card_pool_list {
         let start_time = pool.time_info.start_ts.parse::<i64>()?;
         let end_time = pool.time_info.end_ts.parse::<i64>()?;
@@ -111,6 +134,11 @@ pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarRespons
         });
     }
 
+    // Get MongoDB connection for event images
+    let db = mongodb::Client::with_uri_str(&config.mongodb.url)
+        .await?
+        .database(&config.mongodb.database);
+
     let mut events = Vec::new();
     for event in data.act_list {
         if event.time_info.start_ts == "0" || event.time_info.end_ts == "0" {
@@ -122,8 +150,9 @@ pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarRespons
 
         events.push(Event {
             id: event.id,
-            name: event.name,
+            name: event.name.clone(),
             description: event.panel_desc,
+            image_url: get_event_image(&db, &event.name).await,
             type_name: event.act_type,
             start_time,
             end_time,

@@ -20,6 +20,7 @@ pub struct Event {
     pub id: i32,
     pub name: String,
     pub description: String,
+    pub image_url: Option<String>,
     pub type_name: String,
     pub start_time: i64,
     pub end_time: i64,

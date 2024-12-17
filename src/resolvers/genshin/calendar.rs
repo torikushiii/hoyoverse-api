@@ -2,6 +2,8 @@ use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use tracing::{debug, error};
 use serde_json::json;
+use mongodb::bson::doc;
+use regex::escape;
 
 use crate::{
     types::{
@@ -13,6 +15,27 @@ use crate::{
 };
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/genshin/api/act_calendar";
+
+async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<String> {
+    let events = db.collection::<mongodb::bson::Document>("events");
+
+    if let Ok(Some(event)) = events
+        .find_one(
+            doc! {
+                "name": {
+                    "$regex": format!(".*{}.*", escape(event_name)),
+                    "$options": "i"
+                },
+                "game": "genshin"
+            }
+        )
+        .await
+    {
+        event.get_str("imageUrl").ok().map(String::from)
+    } else {
+        None
+    }
+}
 
 pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
     debug!("Fetching Genshin calendar data");
@@ -110,6 +133,11 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
             });
     }
 
+    // Get MongoDB connection for event images
+    let db = mongodb::Client::with_uri_str(&config.mongodb.url)
+        .await?
+        .database(&config.mongodb.database);
+
     // Transform events (act_list takes priority)
     let mut events = Vec::new();
     let mut seen_event_names = std::collections::HashSet::new();
@@ -122,8 +150,9 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         seen_event_names.insert(event.name.clone());
         events.push(Event {
             id: event.id,
-            name: event.name,
+            name: event.name.clone(),
             description: event.desc,
+            image_url: get_event_image(&db, &event.name).await,
             type_name: event.event_type,
             start_time,
             end_time,
@@ -148,8 +177,9 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
 
             events.push(Event {
                 id: event.id,
-                name: event.name,
+                name: event.name.clone(),
                 description: event.desc,
+                image_url: get_event_image(&db, &event.name).await,
                 type_name: event.event_type,
                 start_time,
                 end_time,
