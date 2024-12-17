@@ -143,17 +143,29 @@ pub async fn handle_news(
         return Err(ApiError::rate_limit_exceeded("Too many requests"));
     }
 
-    let collection = db.mongo.collection::<NewsItem>(&format!("{}_news", game_name));
-
-    let lang = query.lang.as_deref().unwrap_or("en");
-    let normalized_lang = parse_language_code(lang);
-
     let normalized_category = match category.as_str() {
         "event" | "events" => "event",
         "notice" | "notices" => "notice",
         "info" | "information" => "info",
         _ => return Err(ApiError::bad_request("Invalid category"))
     };
+
+    let lang = query.lang.as_deref().unwrap_or("en");
+    let normalized_lang = parse_language_code(lang);
+
+    let cache_key = format!("{}_news_{}_{}", game_name, normalized_category, normalized_lang);
+    let cached_data = db.redis.get_cached(&cache_key)
+        .await
+        .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
+
+    if let Some(data) = cached_data {
+        if let Ok(news) = serde_json::from_str::<Vec<NewsItemResponse>>(&data) {
+            debug!("Returning cached news data");
+            return Ok(Json(news));
+        }
+    }
+
+    let collection = db.mongo.collection::<NewsItem>(&format!("{}_news", game_name));
 
     let filter = bson::doc! {
         "type": normalized_category,
@@ -183,6 +195,12 @@ pub async fn handle_news(
             filter
         );
         return Err(ApiError::not_found("No news items found"));
+    }
+
+    if let Ok(json) = serde_json::to_string(&news) {
+        if let Err(e) = db.redis.set_cached(&cache_key, &json, 300).await {
+            error!("Failed to cache news: {}", e);
+        }
     }
 
     Ok(Json(news))
