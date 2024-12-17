@@ -53,7 +53,7 @@ impl CodeValidationService {
         let db = self.db.clone();
         let config = self.config.clone();
 
-        sched.add(Job::new_async("0 * * * * *", move |_, _| {
+        sched.add(Job::new_async("0 */30 * * * *", move |_, _| {
             let db = db.clone();
             let config = config.clone();
             Box::pin(async move {
