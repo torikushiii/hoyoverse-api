@@ -16,7 +16,7 @@ use crate::{
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/genshin/api/act_calendar";
 
-async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<String> {
+async fn get_event_data(db: &mongodb::Database, event_name: &str) -> Option<(String, Option<i64>, Option<i64>)> {
     let events = db.collection::<mongodb::bson::Document>("events");
 
     if let Ok(Some(event)) = events
@@ -31,7 +31,11 @@ async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<Str
         )
         .await
     {
-        event.get_str("imageUrl").ok().map(String::from)
+        let image_url = event.get_str("imageUrl").ok().map(String::from);
+        let start_time = event.get_i64("startTime").ok();
+        let end_time = event.get_i64("endTime").ok();
+
+        image_url.map(|url| (url, start_time, end_time))
     } else {
         None
     }
@@ -133,29 +137,33 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
             });
     }
 
-    // Get MongoDB connection for event images
     let db = mongodb::Client::with_uri_str(&config.mongodb.url)
         .await?
         .database(&config.mongodb.database);
 
-    // Transform events (act_list takes priority)
     let mut events = Vec::new();
     let mut seen_event_names = std::collections::HashSet::new();
 
-    // Process act_list first (primary events)
     for event in data.act_list {
-        let start_time = event.start_timestamp.parse::<i64>()?;
-        let end_time = event.end_timestamp.parse::<i64>()?;
+        let start_time = event.start_timestamp.parse::<i64>().unwrap_or(0);
+        let end_time = event.end_timestamp.parse::<i64>().unwrap_or(0);
 
         seen_event_names.insert(event.name.clone());
+
+        let (image_url, db_start_time, db_end_time) =
+            get_event_data(&db, &event.name).await.unwrap_or((String::new(), None, None));
+
+        let final_start_time = if start_time == 0 { db_start_time.unwrap_or(0) } else { start_time };
+        let final_end_time = if end_time == 0 { db_end_time.unwrap_or(0) } else { end_time };
+
         events.push(Event {
             id: event.id,
             name: event.name.clone(),
             description: event.desc,
-            image_url: get_event_image(&db, &event.name).await,
+            image_url: if !image_url.is_empty() { Some(image_url) } else { None },
             type_name: event.event_type,
-            start_time,
-            end_time,
+            start_time: final_start_time,
+            end_time: final_end_time,
             rewards: event.reward_list.into_iter()
                 .map(|reward| Reward {
                     id: reward.item_id,
@@ -169,20 +177,25 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         });
     }
 
-    // Add selected_act_list events that aren't already included
     for event in data.selected_act_list {
         if !seen_event_names.contains(&event.name) {
-            let start_time = event.start_timestamp.parse::<i64>()?;
-            let end_time = event.end_timestamp.parse::<i64>()?;
+            let start_time = event.start_timestamp.parse::<i64>().unwrap_or(0);
+            let end_time = event.end_timestamp.parse::<i64>().unwrap_or(0);
+
+            let (image_url, db_start_time, db_end_time) =
+                get_event_data(&db, &event.name).await.unwrap_or((String::new(), None, None));
+
+            let final_start_time = if start_time == 0 { db_start_time.unwrap_or(0) } else { start_time };
+            let final_end_time = if end_time == 0 { db_end_time.unwrap_or(0) } else { end_time };
 
             events.push(Event {
                 id: event.id,
                 name: event.name.clone(),
                 description: event.desc,
-                image_url: get_event_image(&db, &event.name).await,
+                image_url: if !image_url.is_empty() { Some(image_url) } else { None },
                 type_name: event.event_type,
-                start_time,
-                end_time,
+                start_time: final_start_time,
+                end_time: final_end_time,
                 rewards: event.reward_list.into_iter()
                     .map(|reward| Reward {
                         id: reward.item_id,
@@ -197,7 +210,6 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         }
     }
 
-    // Transform fixed_act_list to challenges
     let mut challenges = Vec::new();
     for challenge in data.fixed_act_list {
         let start_time = challenge.start_timestamp.parse::<i64>()?;
