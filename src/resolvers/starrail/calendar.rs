@@ -11,12 +11,13 @@ use crate::{
     },
     config::Settings,
     utils::generate_ds::generate_ds,
+    db::MongoConnection,
 };
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
 
-async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<String> {
-    let events = db.collection::<mongodb::bson::Document>("events");
+async fn get_event_image(mongo: &MongoConnection, event_name: &str) -> Option<String> {
+    let events = mongo.collection::<mongodb::bson::Document>("events");
 
     if let Ok(Some(event)) = events
         .find_one(
@@ -36,7 +37,7 @@ async fn get_event_image(db: &mongodb::Database, event_name: &str) -> Option<Str
     }
 }
 
-pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarResponse> {
+pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Result<StarRailCalendarResponse> {
     debug!("Fetching StarRail calendar data");
 
     let account = config.game_accounts.starrail.first()
@@ -134,11 +135,6 @@ pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarRespons
         });
     }
 
-    // Get MongoDB connection for event images
-    let db = mongodb::Client::with_uri_str(&config.mongodb.url)
-        .await?
-        .database(&config.mongodb.database);
-
     let mut events = Vec::new();
     for event in data.act_list {
         if event.time_info.start_ts == "0" || event.time_info.end_ts == "0" {
@@ -152,7 +148,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<StarRailCalendarRespons
             id: event.id,
             name: event.name.clone(),
             description: event.panel_desc,
-            image_url: get_event_image(&db, &event.name).await,
+            image_url: get_event_image(mongo, &event.name).await,
             type_name: event.act_type,
             start_time,
             end_time,

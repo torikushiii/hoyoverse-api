@@ -12,12 +12,13 @@ use crate::{
     },
     config::Settings,
     utils::generate_ds::generate_ds,
+    db::MongoConnection,
 };
 
 const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/genshin/api/act_calendar";
 
-async fn get_event_data(db: &mongodb::Database, event_name: &str) -> Option<(String, Option<i64>, Option<i64>)> {
-    let events = db.collection::<mongodb::bson::Document>("events");
+async fn get_event_data(mongo: &MongoConnection, event_name: &str) -> Option<(String, Option<i64>, Option<i64>)> {
+    let events = mongo.collection::<mongodb::bson::Document>("events");
 
     if let Ok(Some(event)) = events
         .find_one(
@@ -41,7 +42,7 @@ async fn get_event_data(db: &mongodb::Database, event_name: &str) -> Option<(Str
     }
 }
 
-pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
+pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Result<CalendarResponse> {
     debug!("Fetching Genshin calendar data");
 
     let account = config.game_accounts.genshin.first()
@@ -137,10 +138,6 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
             });
     }
 
-    let db = mongodb::Client::with_uri_str(&config.mongodb.url)
-        .await?
-        .database(&config.mongodb.database);
-
     let mut events = Vec::new();
     let mut seen_event_names = std::collections::HashSet::new();
 
@@ -151,7 +148,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
         seen_event_names.insert(event.name.clone());
 
         let (image_url, db_start_time, db_end_time) =
-            get_event_data(&db, &event.name).await.unwrap_or((String::new(), None, None));
+            get_event_data(mongo, &event.name).await.unwrap_or((String::new(), None, None));
 
         let final_start_time = if start_time == 0 { db_start_time.unwrap_or(0) } else { start_time };
         let final_end_time = if end_time == 0 { db_end_time.unwrap_or(0) } else { end_time };
@@ -183,7 +180,7 @@ pub async fn fetch_calendar(config: &Settings) -> Result<CalendarResponse> {
             let end_time = event.end_timestamp.parse::<i64>().unwrap_or(0);
 
             let (image_url, db_start_time, db_end_time) =
-                get_event_data(&db, &event.name).await.unwrap_or((String::new(), None, None));
+                get_event_data(mongo, &event.name).await.unwrap_or((String::new(), None, None));
 
             let final_start_time = if start_time == 0 { db_start_time.unwrap_or(0) } else { start_time };
             let final_end_time = if end_time == 0 { db_end_time.unwrap_or(0) } else { end_time };

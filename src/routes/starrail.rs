@@ -83,7 +83,7 @@ async fn calendar(
         ApiError::internal_server_error("Failed to load configuration")
     })?;
 
-    match StarRailResolver::fetch_calendar(&config).await {
+    match StarRailResolver::fetch_calendar(&config, &db.mongo).await {
         Ok(calendar) => {
             if let Ok(json) = serde_json::to_string(&calendar) {
                 if let Err(e) = db.redis.set_cached(cache_key, &json, 3600).await {
