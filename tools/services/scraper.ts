@@ -42,8 +42,17 @@ export class EventScraper {
         );
     }
 
+    private static parseTimestamp(dateStr: string): number {
+        try {
+            const timestamp = new Date(dateStr.trim()).getTime();
+            return !isNaN(timestamp) ? timestamp : 0;
+        } catch {
+            return 0;
+        }
+    }
+
     // @ts-ignore
-    private static processEventTable($: cheerio.CheerioAPI, table: cheerio.Cheerio<cheerio.Element>, game: Game): Event[] {
+    private static processEventTable($: cheerio.CheerioAPI, table: cheerio.Cheerio<cheerio.Element>, game: Game, isUpcoming: boolean): Event[] {
         const events: Event[] = [];
 
         table.find("tbody tr").each((_, element) => {
@@ -64,7 +73,26 @@ export class EventScraper {
                 return;
             }
 
-            events.push({ name: eventName, imageUrl, game });
+            const event: Event = { name: eventName, imageUrl, game };
+
+            if (isUpcoming && game === 'genshin') {
+                const durationValue = $row.find("td:nth-child(2)").attr("data-sort-value");
+                if (durationValue) {
+                    try {
+                        const [startTime, endTime] = durationValue.split(/(?=\d{4}-\d{2}-\d{2})/);
+                        if (startTime) {
+                            event.startTime = this.parseTimestamp(startTime);
+                        }
+                        if (endTime) {
+                            event.endTime = this.parseTimestamp(endTime);
+                        }
+                    } catch {
+                        console.warn(`Failed to parse timestamps for Genshin event: ${eventName}`);
+                    }
+                }
+            }
+
+            events.push(event);
         });
 
         return events;
@@ -79,15 +107,15 @@ export class EventScraper {
         const $ = cheerio.load(response.body);
         let events: Event[] = [];
 
-        const tables = [
-            $("#mw-content-text > div > table.wikitable.sortable").first(),
-            $("#Upcoming").parent().nextAll("table.wikitable.sortable").first()
-        ];
+        const currentTable = $("#mw-content-text > div > table.wikitable.sortable").first();
+        const upcomingTable = $("#Upcoming").parent().nextAll("table.wikitable.sortable").first();
 
-        for (const table of tables) {
-            if (table.length > 0) {
-                events = [...events, ...this.processEventTable($, table, game)];
-            }
+        if (currentTable.length > 0) {
+            events = [...events, ...this.processEventTable($, currentTable, game, false)];
+        }
+
+        if (upcomingTable.length > 0) {
+            events = [...events, ...this.processEventTable($, upcomingTable, game, true)];
         }
 
         return events;
