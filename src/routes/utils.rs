@@ -59,7 +59,7 @@ pub async fn handle_codes(
     }
 
     let cache_key = format!("{}_codes", game_name);
-    let cached_data = db.get_cached_data(cache_key.clone(), "codes".to_string())
+    let cached_data = db.redis.get_cached(&cache_key)
         .await
         .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
 
