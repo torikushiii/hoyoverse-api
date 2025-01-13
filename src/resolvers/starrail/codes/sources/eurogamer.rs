@@ -28,12 +28,12 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                 // First split by comma and space ", " to avoid splitting numbers
                 s.split(", ")
             })
-            .map(|s| s.replace("(new!)", "").trim().to_string())
+            .map(|s| s.replace("NEW", "").trim().to_string())
             .filter(|s| !s.is_empty())
             .collect()
     }
 
-    let list_selector = Selector::parse("#content_above > div.page_content > article > div > div > ul:nth-child(14) > li").unwrap();
+    let list_selector = Selector::parse("#content_above > div.page_content > main > div > article > div > div > ul:nth-child(12) > li").unwrap();
     for item in document.select(&list_selector) {
         let text = item.text().collect::<String>().trim().to_string();
         if let Some((code, rewards_str)) = text.split_once(':') {
