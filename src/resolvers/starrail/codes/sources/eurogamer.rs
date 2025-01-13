@@ -34,19 +34,25 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     }
 
     let list_selector = Selector::parse("#content_above > div.page_content > main > div > article > div > div > ul:nth-child(12) > li").unwrap();
+    let strong_selector = Selector::parse("strong").unwrap();
+
     for item in document.select(&list_selector) {
-        let text = item.text().collect::<String>().trim().to_string();
-        if let Some((code, rewards_str)) = text.split_once(':') {
-            let code = code.trim().to_string();
+        let code = item.select(&strong_selector)
+            .next()
+            .map(|s| s.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+
+        let text = item.text().collect::<String>();
+        if let Some(rewards_str) = text.split('-').nth(1) {
             let rewards = parse_rewards(rewards_str);
 
             if !code.is_empty() {
                 codes.push(GameCode {
                     id: None,
-                    code: code.to_string(),
+                    code,
                     active: true,
                     date: current_time.into(),
-                    rewards: rewards.clone(),
+                    rewards,
                     source: "eurogamer".to_string(),
                 });
             }
