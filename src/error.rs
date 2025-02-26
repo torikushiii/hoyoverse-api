@@ -153,6 +153,7 @@ pub enum HoyolabRetcode {
     InGameRedemption = -2024,
     Expired = -2001,
     Invalid = -2003,
+    NoLongerValid = -2002,
     Cooldown = -2016,
     LevelRequirement = -2011,
     MaxUsageReached = -2006,
@@ -168,6 +169,7 @@ impl HoyolabRetcode {
             -2024 => Some(Self::InGameRedemption),
             -2001 => Some(Self::Expired),
             -2003 => Some(Self::Invalid),
+            -2002 => Some(Self::NoLongerValid),
             -2016 => Some(Self::Cooldown),
             -2011 => Some(Self::LevelRequirement),
             -2006 => Some(Self::MaxUsageReached),
@@ -182,7 +184,7 @@ impl HoyolabRetcode {
             Self::AlreadyRedeemed | Self::AlreadyRedeemedAlt => ValidationResult::AlreadyRedeemed,
             Self::InGameRedemption => ValidationResult::Valid, // Consider valid if it requires in-game redemption
             Self::Expired => ValidationResult::Expired,
-            Self::Invalid => ValidationResult::Invalid,
+            Self::Invalid | Self::NoLongerValid => ValidationResult::Invalid,
             Self::Cooldown => ValidationResult::Cooldown,
             Self::LevelRequirement => ValidationResult::Valid, // Consider valid if it has level requirements
             Self::MaxUsageReached => ValidationResult::MaxUsageReached,
