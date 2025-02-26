@@ -80,9 +80,9 @@ async fn test_fetch_codes() {
         // Each code should have at least one reward
         assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
 
-        // Source should be either game8, eurogamer, or prydwen
+        // Source should be one of our known sources
         assert!(
-            ["game8", "eurogamer", "prydwen"].contains(&code.source.as_str()),
+            ["game8", "eurogamer", "prydwen", "hoyolab", "fandom"].contains(&code.source.as_str()),
             "Invalid source: {}", code.source
         );
 
@@ -107,12 +107,16 @@ async fn test_hoyolab_fetch() {
 
     if !codes.is_empty() {
         for code in &codes {
+            // Codes should be uppercase and contain only letters and numbers
             assert!(code.code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
 
+            // Each code should have at least one reward
             assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
 
+            // Source should be correct
             assert_eq!(code.source, "hoyolab");
 
+            // Should be marked as active
             assert!(code.active);
 
             println!("Found HoyoLab code: {} with rewards: {:?}", code.code, code.rewards);
@@ -141,6 +145,31 @@ async fn test_prydwen_fetch() {
             assert!(code.active);
 
             println!("Found Prydwen code: {} with rewards: {:?}", code.code, code.rewards);
+        }
+    }
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_fandom_fetch() {
+    let config = get_test_config();
+    let codes = fandom::fetch_codes(&config).await.unwrap();
+
+    if !codes.is_empty() {
+        for code in &codes {
+            // Codes should be uppercase and contain only letters and numbers
+            assert!(code.code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()));
+
+            // Each code should have at least one reward
+            assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+
+            // Source should be correct
+            assert_eq!(code.source, "fandom");
+
+            // Should be marked as active
+            assert!(code.active);
+
+            println!("Found Fandom code: {} with rewards: {:?}", code.code, code.rewards);
         }
     }
 }
