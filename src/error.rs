@@ -183,8 +183,8 @@ impl HoyolabRetcode {
             Self::Success => ValidationResult::Valid,
             Self::AlreadyRedeemed | Self::AlreadyRedeemedAlt => ValidationResult::AlreadyRedeemed,
             Self::InGameRedemption => ValidationResult::Valid, // Consider valid if it requires in-game redemption
-            Self::Expired => ValidationResult::Expired,
-            Self::Invalid | Self::NoLongerValid => ValidationResult::Invalid,
+            Self::Expired | Self::NoLongerValid => ValidationResult::Expired,
+            Self::Invalid => ValidationResult::Invalid,
             Self::Cooldown => ValidationResult::Cooldown,
             Self::LevelRequirement => ValidationResult::Valid, // Consider valid if it has level requirements
             Self::MaxUsageReached => ValidationResult::MaxUsageReached,
