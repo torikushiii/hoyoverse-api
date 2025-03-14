@@ -26,46 +26,53 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                     let options = UpdateOptions::builder().upsert(true).build();
 
                     for code in new_codes {
-                        if let Ok(mut doc) = bson::to_document(&code) {
-                            doc.remove("date");
-                            let filter = doc! { "code": &code.code };
-                            let update = doc! {
-                                "$set": {
-                                    "code": &code.code,
-                                    "active": code.active,
-                                    "rewards": &code.rewards,
-                                    "source": &code.source
-                                },
-                                "$setOnInsert": {
-                                    "date": bson::DateTime::now()
-                                }
-                            };
+                        let filter = doc! {
+                            "code": {
+                                "$regex": &code.code,
+                                "$options": "i"
+                            }
+                        };
+                        if let Ok(exists) = collection.find_one(filter.clone()).await {
+                            if let Ok(mut doc) = bson::to_document(&code) {
+                                doc.remove("date");
+                                let update = doc! {
+                                    "$set": {
+                                        "code": &code.code,
+                                        "active": code.active,
+                                        "rewards": &code.rewards,
+                                        "source": &code.source
+                                    },
+                                    "$setOnInsert": {
+                                        "date": bson::DateTime::now()
+                                    }
+                                };
 
-                            match collection.update_one(filter, update)
-                                .with_options(options.clone())
-                                .await
-                            {
-                                Ok(result) => {
-                                    if result.upserted_id.is_some() {
-                                        info!(
-                                            "[Honkai][Codes] Inserted new code: {} (active: {})",
+                                match collection.update_one(filter, update)
+                                    .with_options(options.clone())
+                                    .await
+                                {
+                                    Ok(result) => {
+                                        if result.upserted_id.is_some() {
+                                            info!(
+                                                "[Honkai][Codes] Inserted new code: {} (active: {})",
+                                                code.code,
+                                                code.active
+                                            );
+                                        } else if result.modified_count > 0 {
+                                            info!(
+                                                "[Honkai][Codes] Updated code status: {} (active: {})",
+                                                code.code,
+                                                code.active
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!(
+                                            "[Honkai][Codes] Failed to update code {}: {}",
                                             code.code,
-                                            code.active
-                                        );
-                                    } else if result.modified_count > 0 {
-                                        info!(
-                                            "[Honkai][Codes] Updated code status: {} (active: {})",
-                                            code.code,
-                                            code.active
+                                            e
                                         );
                                     }
-                                }
-                                Err(e) => {
-                                    error!(
-                                        "[Honkai][Codes] Failed to update code {}: {}",
-                                        code.code,
-                                        e
-                                    );
                                 }
                             }
                         }

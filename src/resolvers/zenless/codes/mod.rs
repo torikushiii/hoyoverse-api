@@ -42,8 +42,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
         codes.append(&mut source_codes);
     }
 
-    codes.sort_by(|a, b| a.code.cmp(&b.code));
-    codes.dedup_by(|a, b| a.code == b.code);
+    codes.sort_by(|a, b| a.code.to_lowercase().cmp(&b.code.to_lowercase()));
+    codes.dedup_by(|a, b| a.code.to_lowercase() == b.code.to_lowercase());
 
     Ok(codes)
 }

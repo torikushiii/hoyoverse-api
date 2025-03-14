@@ -42,7 +42,12 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
                     }
 
                     for code in new_codes {
-                        let filter = doc! { "code": &code.code };
+                        let filter = doc! {
+                            "code": {
+                                "$regex": &code.code,
+                                "$options": "i"
+                            }
+                        };
                         if let Ok(exists) = collection.find_one(filter.clone()).await {
                             if exists.is_some() {
                                 continue;
