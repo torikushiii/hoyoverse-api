@@ -47,6 +47,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                         let rewards_text = rewards_text
                             .trim_start_matches('(')
                             .trim_end_matches(')')
+                            .trim_start_matches("- (")
+                            .trim()
                             .to_string();
 
                         // Process rewards, handling cases where numbers might be split by commas
