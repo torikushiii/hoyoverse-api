@@ -55,20 +55,11 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
                         if let Some(rewards_text) = full_text.split('–').nth(1) {
                             let cleaned_text = rewards_text.trim().replace("(NEW)", "").trim().to_string();
 
-                            // Split rewards by "and" first, then handle commas
+                            // Replace ", and " with "," then split by comma
                             let rewards: Vec<String> = cleaned_text
-                                .split(" and ")
-                                .flat_map(|part| {
-                                    // If part contains a comma followed by a number, keep it whole
-                                    if part.contains(',') && part.chars().any(|c| c.is_ascii_digit()) {
-                                        vec![part.trim().to_string()]
-                                    } else {
-                                        // Otherwise split by comma
-                                        part.split(',')
-                                            .map(|r| r.trim().to_string())
-                                            .collect::<Vec<_>>()
-                                    }
-                                })
+                                .replace(", and ", ",")
+                                .split(',')
+                                .map(|r| r.trim().to_string())
                                 .filter(|r| !r.is_empty())
                                 .collect();
 
