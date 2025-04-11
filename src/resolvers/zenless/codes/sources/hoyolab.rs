@@ -36,7 +36,7 @@ struct Bonus {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IconBonus {
-    bonus_num: String,
+    bonus_num: u64,
     icon_url: String,
 }
 
