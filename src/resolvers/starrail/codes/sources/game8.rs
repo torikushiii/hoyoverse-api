@@ -19,9 +19,11 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let document = Html::parse_document(&html);
 
     let title_selector = Selector::parse("h2").unwrap();
-    let list_selector = Selector::parse("ul.a-list").unwrap();
-    let item_selector = Selector::parse("li.a-listItem").unwrap();
-    let link_selector = Selector::parse("a.a-link").unwrap();
+    let table_selector = Selector::parse("table.a-table").unwrap();
+    let row_selector = Selector::parse("tr").unwrap();
+    let cell_selector = Selector::parse("td").unwrap();
+    let input_selector = Selector::parse("input.a-clipboard__textInput").unwrap();
+    let reward_div_selector = Selector::parse("div.align").unwrap();
 
     let mut codes = Vec::new();
     let current_time = Utc::now();
@@ -29,59 +31,44 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     // Find the correct section by title
     for title in document.select(&title_selector) {
         if title.text().collect::<String>().contains("Active Redeem Codes for") {
-            if let Some(code_list) = document.select(&list_selector).next() {
-                for item in code_list.select(&item_selector) {
-                    // Get the code from the first a.a-link element
-                    if let Some(code_element) = item.select(&link_selector).next() {
-                        let code = code_element.text().collect::<String>().trim().to_string();
+            if let Some(table) = document.select(&table_selector).next() {
+                for row in table.select(&row_selector).skip(1) {
+                    let cells: Vec<_> = row.select(&cell_selector).collect();
 
-                        // Get rewards text by removing the code and "NEW" from the full text
-                        let full_text = item.text().collect::<String>();
-                        let rewards_text = full_text
-                            .replace(&code, "")
-                            .replace("NEW", "")
-                            .trim()
-                            .to_string();
+                    if cells.len() >= 2 {
+                        let code_cell = &cells[0];
+                        let rewards_cell = &cells[1];
 
-                        // Clean up rewards text
-                        let rewards_text = rewards_text
-                            .trim_start_matches('(')
-                            .trim_end_matches(')')
-                            .trim_start_matches("- (")
-                            .trim()
-                            .to_string();
+                        if let Some(input_element) = code_cell.select(&input_selector).next() {
+                            if let Some(code_value) = input_element.value().attr("value") {
+                                let code = code_value.trim().to_string();
+                                let mut rewards = Vec::new();
 
-                        // Process rewards, handling cases where numbers might be split by commas
-                        let mut rewards = Vec::new();
-                        let mut current_reward = String::new();
+                                for reward_div in rewards_cell.select(&reward_div_selector) {
+                                    let reward_text = reward_div.text().collect::<String>();
 
-                        for part in rewards_text.split(',') {
-                            let part = part.trim();
-                            if current_reward.chars().last().map_or(false, |c| c.is_ascii_digit())
-                               && part.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-                                // If current reward ends with number and next part starts with number,
-                                // treat it as a thousands separator
-                                current_reward.push(',');
-                                current_reward.push_str(part);
-                            } else {
-                                if !current_reward.is_empty() {
-                                    rewards.push(current_reward.trim().to_string());
+                                    let reward_text = reward_text
+                                        .lines()
+                                        .map(|line| line.trim())
+                                        .filter(|line| !line.is_empty())
+                                        .collect::<Vec<_>>()
+                                        .join(" ");
+
+                                    if !reward_text.is_empty() {
+                                        rewards.push(reward_text);
+                                    }
                                 }
-                                current_reward = part.to_string();
+
+                                codes.push(GameCode {
+                                    id: None,
+                                    code: code,
+                                    active: true,
+                                    date: current_time.into(),
+                                    rewards: rewards,
+                                    source: "game8".to_string(),
+                                });
                             }
                         }
-                        if !current_reward.is_empty() {
-                            rewards.push(current_reward.trim().to_string());
-                        }
-
-                        codes.push(GameCode {
-                            id: None,
-                            code: code.to_string(),
-                            active: true,
-                            date: current_time.into(),
-                            rewards: rewards.clone(),
-                            source: "game8".to_string(),
-                        });
                     }
                 }
             }
