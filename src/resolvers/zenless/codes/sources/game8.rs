@@ -31,90 +31,73 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 }
 
 fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
-    let item_selector = Selector::parse("li.a-listItem").unwrap();
-    let link_selector = Selector::parse("a.a-link").unwrap();
+    let table_selector = Selector::parse("table.a-table").unwrap();
+    let tr_selector = Selector::parse("tr").unwrap();
+    let td_selector = Selector::parse("td").unwrap();
+    let input_selector = Selector::parse("input.a-clipboard__textInput").unwrap();
+    let align_div_selector = Selector::parse("div.align").unwrap();
     let code_regex = Regex::new(r"^[A-Z0-9]+$").unwrap();
     let current_time = Utc::now();
 
-    let codes = document.select(&item_selector)
-        .filter_map(|item| {
-            let item_text = item.text().collect::<String>();
+    let mut codes = Vec::new();
 
-            // Skip items that don't contain a dash
-            if !item_text.contains('-') {
-                return None;
+    // Find the table and iterate through rows
+    if let Some(table) = document.select(&table_selector).next() {
+        for row in table.select(&tr_selector) {
+            let columns: Vec<_> = row.select(&td_selector).collect();
+
+            // Skip header row and rows that don't have exactly 2 columns
+            if columns.len() != 2 {
+                continue;
             }
 
-            // Try to get code from a-link first, then fallback to text before dash
-            let code = item.select(&link_selector)
-                .next()
-                .map(|el| el.text().collect::<String>().trim().to_string())
-                .unwrap_or_else(|| {
-                    item_text
-                        .split('-')
-                        .next()
+            // Get code from first column - look for input element
+            if let Some(code_col) = columns.get(0) {
+                let code = if let Some(input) = code_col.select(&input_selector).next() {
+                    input.value().attr("value")
                         .unwrap_or("")
                         .trim()
-                        .to_string()
-                });
+                        .to_uppercase()
+                } else {
+                    continue;
+                };
 
-            // Validate code format
-            if !code_regex.is_match(&code) {
-                return None;
-            }
+                if !code_regex.is_match(&code) {
+                    continue;
+                }
 
-            // Extract rewards text after the first dash
-            let rewards_text = item_text
-                .split_once('-')
-                .map(|(_, rewards)| rewards.trim())?;
+                // Get rewards from second column - look for div.align elements
+                if let Some(rewards_col) = columns.get(1) {
+                    let rewards: Vec<String> = rewards_col.select(&align_div_selector)
+                         .filter_map(|div| {
+                             let text = div.text().collect::<String>();
+                             let cleaned = text.trim()
+                                 .replace('\n', " ")
+                                 .split_whitespace()
+                                 .collect::<Vec<&str>>()
+                                 .join(" ");
+                             if cleaned.is_empty() {
+                                 None
+                             } else {
+                                 Some(cleaned)
+                             }
+                         })
+                         .collect();
 
-            // Split rewards by looking ahead for a comma followed by a letter
-            let mut rewards = Vec::new();
-            let mut current_reward = String::new();
-            let mut chars = rewards_text.chars().peekable();
-
-            while let Some(c) = chars.next() {
-                current_reward.push(c);
-
-                if c == ',' {
-                    // Look ahead to see if the next non-whitespace character is a letter
-                    let mut peek_iter = chars.clone();
-                    let next_non_whitespace = peek_iter
-                        .find(|&c| !c.is_whitespace());
-
-                    if let Some(next_char) = next_non_whitespace {
-                        if next_char.is_alphabetic() {
-                            // This comma separates rewards
-                            let reward = current_reward[..current_reward.len()-1].trim().to_string();
-                            if !reward.is_empty() {
-                                rewards.push(reward);
-                            }
-                            current_reward.clear();
-                        }
+                    if !rewards.is_empty() {
+                        codes.push(GameCode {
+                            id: None,
+                            code,
+                            active: true,
+                            date: current_time.into(),
+                            rewards,
+                            source: "game8".to_string(),
+                        });
                     }
                 }
             }
-
-            // Add the last reward
-            let final_reward = current_reward.trim().to_string();
-            if !final_reward.is_empty() {
-                rewards.push(final_reward);
-            }
-
-            if rewards.is_empty() {
-                return None;
-            }
-
-            Some(GameCode {
-                id: None,
-                code,
-                active: true,
-                date: current_time.into(),
-                rewards,
-                source: "game8".to_string(),
-            })
-        })
-        .collect();
+        }
+    }
 
     Ok(codes)
 }
