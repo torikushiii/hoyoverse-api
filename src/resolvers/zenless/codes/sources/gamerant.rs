@@ -30,29 +30,40 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 }
 
 fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
-    let tbody_selector = Selector::parse("tbody").unwrap();
+    let table_selector = Selector::parse("table").unwrap();
     let tr_selector = Selector::parse("tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
     let li_selector = Selector::parse("li").unwrap();
+    let a_selector = Selector::parse("a").unwrap();
     let current_time = Utc::now();
 
     let mut codes = Vec::new();
 
-    if let Some(tbody) = document.select(&tbody_selector).next() {
-        for row in tbody.select(&tr_selector) {
-            let mut columns = row.select(&td_selector);
+    // Find the table and iterate through all rows with td elements
+    if let Some(table) = document.select(&table_selector).next() {
+        for row in table.select(&tr_selector) {
+            let columns: Vec<_> = row.select(&td_selector).collect();
+            
+            // Skip rows that don't have exactly 2 columns (code and rewards)
+            if columns.len() != 2 {
+                continue;
+            }
 
-            // Get code from first column
-            if let Some(code_col) = columns.next() {
-                let code = code_col.text()
-                    .collect::<String>()
-                    .trim()
-                    .replace("(PC Only)", "")
-                    .trim()
-                    .to_string();
+            // Get code from first column - look for anchor tag
+            if let Some(code_col) = columns.get(0) {
+                let code = if let Some(anchor) = code_col.select(&a_selector).next() {
+                     anchor.text().collect::<String>().trim().to_uppercase()
+                 } else {
+                     code_col.text()
+                         .collect::<String>()
+                         .trim()
+                         .replace("(PC Only)", "")
+                         .trim()
+                         .to_uppercase()
+                 };
 
                 // Get rewards from second column
-                if let Some(rewards_col) = columns.next() {
+                if let Some(rewards_col) = columns.get(1) {
                     let rewards: Vec<String> = rewards_col.select(&li_selector)
                         .map(|li| li.text().collect::<String>().trim().to_string())
                         .filter(|reward| !reward.is_empty())
