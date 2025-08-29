@@ -36,8 +36,50 @@ struct Bonus {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IconBonus {
+    #[serde(deserialize_with = "deserialize_bonus_num")]
     bonus_num: String,
     icon_url: String,
+}
+
+fn deserialize_bonus_num<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct BonusNumVisitor;
+
+    impl<'de> Visitor<'de> for BonusNumVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or integer")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.to_string())
+        }
+    }
+
+    deserializer.deserialize_any(BonusNumVisitor)
 }
 
 static REWARD_HASHES: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
@@ -88,7 +130,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                             .find(|(hash, _)| icon_bonus.icon_url.contains(*hash))
                             .map(|(_, name)| *name)
                             .unwrap_or("Unknown");
-                        format!("x{} {}", icon_bonus.bonus_num, reward_name)
+                        format!("{} ×{}", reward_name, icon_bonus.bonus_num)
                     })
                     .collect();
 
