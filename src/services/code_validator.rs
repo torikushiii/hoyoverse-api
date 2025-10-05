@@ -1,21 +1,20 @@
-use std::sync::Arc;
-use tokio_cron_scheduler::{JobScheduler, Job};
-use mongodb::{
-    bson::doc,
-    Cursor,
+use crate::{
+    config::{GameAccount, Settings},
+    db::DatabaseConnections,
+    error::ValidationResult,
+    services::validation::{
+        GameValidator, GenshinValidator, StarRailValidator, ThemisValidator, ZenlessValidator,
+    },
+    services::webhook::WebhookService,
+    types::GameCode,
 };
 use futures_util::TryStreamExt;
-use tracing::{info, error, debug};
-use crate::{
-    db::DatabaseConnections,
-    types::GameCode,
-    config::{GameAccount, Settings},
-    error::ValidationResult,
-    services::validation::{GameValidator, StarRailValidator, GenshinValidator, ZenlessValidator, ThemisValidator},
-    services::webhook::WebhookService,
-};
+use mongodb::{bson::doc, Cursor};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing::{debug, error, info};
 
 pub struct CodeValidationService {
     db: Arc<DatabaseConnections>,
@@ -53,14 +52,16 @@ impl CodeValidationService {
         let db = self.db.clone();
         let config = self.config.clone();
 
-        sched.add(Job::new_async("0 */30 * * * *", move |_, _| {
-            let db = db.clone();
-            let config = config.clone();
-            Box::pin(async move {
-                let validator = CodeValidationService::new(db, config);
-                validator.validate_all_codes().await;
-            })
-        })?).await?;
+        sched
+            .add(Job::new_async("0 */30 * * * *", move |_, _| {
+                let db = db.clone();
+                let config = config.clone();
+                Box::pin(async move {
+                    let validator = CodeValidationService::new(db, config);
+                    validator.validate_all_codes().await;
+                })
+            })?)
+            .await?;
 
         Ok(())
     }
@@ -76,10 +77,7 @@ impl CodeValidationService {
 
     async fn validate_starrail_codes(&self) {
         let collection = self.db.mongo.collection::<GameCode>("starrail_codes");
-        let active_codes = match collection
-            .find(doc! { "active": true })
-            .await
-        {
+        let active_codes = match collection.find(doc! { "active": true }).await {
             Ok(cursor) => cursor,
             Err(e) => {
                 error!("[StarRail] Failed to fetch active codes: {}", e);
@@ -99,15 +97,13 @@ impl CodeValidationService {
             "starrail_codes",
             |service, code, account| Box::pin(service.validate_starrail_code(code, account)),
             "[StarRail]",
-        ).await;
+        )
+        .await;
     }
 
     async fn validate_genshin_codes(&self) {
         let collection = self.db.mongo.collection::<GameCode>("genshin_codes");
-        let active_codes = match collection
-            .find(doc! { "active": true })
-            .await
-        {
+        let active_codes = match collection.find(doc! { "active": true }).await {
             Ok(cursor) => cursor,
             Err(e) => {
                 error!("[Genshin] Failed to fetch active codes: {}", e);
@@ -127,15 +123,13 @@ impl CodeValidationService {
             "genshin_codes",
             |service, code, account| Box::pin(service.validate_genshin_code(code, account)),
             "[Genshin]",
-        ).await;
+        )
+        .await;
     }
 
     async fn validate_zenless_codes(&self) {
         let collection = self.db.mongo.collection::<GameCode>("zenless_codes");
-        let active_codes = match collection
-            .find(doc! { "active": true })
-            .await
-        {
+        let active_codes = match collection.find(doc! { "active": true }).await {
             Ok(cursor) => cursor,
             Err(e) => {
                 error!("[Zenless] Failed to fetch active codes: {}", e);
@@ -155,15 +149,13 @@ impl CodeValidationService {
             "zenless_codes",
             |service, code, account| Box::pin(service.validate_zenless_code(code, account)),
             "[Zenless]",
-        ).await;
+        )
+        .await;
     }
 
     async fn validate_themis_codes(&self) {
         let collection = self.db.mongo.collection::<GameCode>("themis_codes");
-        let active_codes = match collection
-            .find(doc! { "active": true })
-            .await
-        {
+        let active_codes = match collection.find(doc! { "active": true }).await {
             Ok(cursor) => cursor,
             Err(e) => {
                 error!("[Themis] Failed to fetch active codes: {}", e);
@@ -183,23 +175,48 @@ impl CodeValidationService {
             "themis_codes",
             |service, code, account| Box::pin(service.validate_themis_code(code, account)),
             "[Themis]",
-        ).await;
+        )
+        .await;
     }
 
-    pub async fn validate_starrail_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        StarRailValidator.validate_code(&self.client, code, account).await
+    pub async fn validate_starrail_code(
+        &self,
+        code: &str,
+        account: &GameAccount,
+    ) -> anyhow::Result<ValidationResult> {
+        StarRailValidator
+            .validate_code(&self.client, code, account)
+            .await
     }
 
-    pub async fn validate_genshin_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        GenshinValidator.validate_code(&self.client, code, account).await
+    pub async fn validate_genshin_code(
+        &self,
+        code: &str,
+        account: &GameAccount,
+    ) -> anyhow::Result<ValidationResult> {
+        GenshinValidator
+            .validate_code(&self.client, code, account)
+            .await
     }
 
-    pub async fn validate_zenless_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        ZenlessValidator.validate_code(&self.client, code, account).await
+    pub async fn validate_zenless_code(
+        &self,
+        code: &str,
+        account: &GameAccount,
+    ) -> anyhow::Result<ValidationResult> {
+        ZenlessValidator
+            .validate_code(&self.client, code, account)
+            .await
     }
 
-    pub async fn validate_themis_code(&self, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
-        ThemisValidator.validate_code(&self.client, code, account).await
+    pub async fn validate_themis_code(
+        &self,
+        code: &str,
+        account: &GameAccount,
+    ) -> anyhow::Result<ValidationResult> {
+        ThemisValidator
+            .validate_code(&self.client, code, account)
+            .await
     }
 
     async fn process_codes(
@@ -207,7 +224,13 @@ impl CodeValidationService {
         mut cursor: Cursor<GameCode>,
         accounts: &[GameAccount],
         collection_name: &str,
-        validator: for<'a> fn(&'a Self, &'a str, &'a GameAccount) -> Pin<Box<dyn Future<Output = anyhow::Result<ValidationResult>> + Send + 'a>>,
+        validator: for<'a> fn(
+            &'a Self,
+            &'a str,
+            &'a GameAccount,
+        ) -> Pin<
+            Box<dyn Future<Output = anyhow::Result<ValidationResult>> + Send + 'a>,
+        >,
         log_prefix: &str,
     ) {
         let test_account = &accounts[0];
@@ -217,15 +240,25 @@ impl CodeValidationService {
             match validator(self, &first_code.code, test_account).await {
                 Ok(ValidationResult::InvalidCredentials) => {
                     error!("{} Invalid account credentials detected", log_prefix);
-                    if let Err(e) = self.webhook.send_invalid_credentials_notification(
-                        collection_name.split('_').next().unwrap_or("unknown")
-                    ).await {
-                        error!("{} Failed to send invalid credentials notification: {}", log_prefix, e);
+                    if let Err(e) = self
+                        .webhook
+                        .send_invalid_credentials_notification(
+                            collection_name.split('_').next().unwrap_or("unknown"),
+                        )
+                        .await
+                    {
+                        error!(
+                            "{} Failed to send invalid credentials notification: {}",
+                            log_prefix, e
+                        );
                     }
                     return;
                 }
                 Ok(_) => {
-                    cursor = self.db.mongo.collection::<GameCode>(collection_name)
+                    cursor = self
+                        .db
+                        .mongo
+                        .collection::<GameCode>(collection_name)
                         .find(doc! { "active": true })
                         .await
                         .expect("Failed to recreate cursor");
@@ -239,38 +272,54 @@ impl CodeValidationService {
 
         while let Ok(Some(code)) = cursor.try_next().await {
             let code_clone = code.clone();
-            let result = self.db.redis.create_mutex().await
+            let result = self
+                .db
+                .redis
+                .create_mutex()
+                .await
                 .expect("Failed to create distributed mutex")
-                .acquire(
-                    format!("code_validation:{}", code.code),
-                    || async {
-                        match validator(self, &code.code, test_account).await {
-                            Ok(result) => {
-                                match result {
-                                    ValidationResult::Valid | ValidationResult::AlreadyRedeemed | ValidationResult::Cooldown => {
-                                        // Code is still considered valid
-                                    },
-                                    ValidationResult::InvalidCredentials => {
-                                        error!("{} Invalid credentials detected during validation", log_prefix);
-                                        return;
-                                    },
-                                    _ => {
-                                        info!("{} Code {} is no longer valid: {:?}", log_prefix, code.code, result);
-                                        codes_to_update.push(code);
-                                    }
+                .acquire(format!("code_validation:{}", code.code), || async {
+                    match validator(self, &code.code, test_account).await {
+                        Ok(result) => {
+                            match result {
+                                ValidationResult::Valid
+                                | ValidationResult::AlreadyRedeemed
+                                | ValidationResult::Cooldown => {
+                                    // Code is still considered valid
+                                }
+                                ValidationResult::InvalidCredentials => {
+                                    error!(
+                                        "{} Invalid credentials detected during validation",
+                                        log_prefix
+                                    );
+                                    return;
+                                }
+                                _ => {
+                                    info!(
+                                        "{} Code {} is no longer valid: {:?}",
+                                        log_prefix, code.code, result
+                                    );
+                                    codes_to_update.push(code);
                                 }
                             }
-                            Err(e) => {
-                                error!("{} Failed to validate code {}: {}", log_prefix, code.code, e);
-                            }
                         }
-
-                        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                        Err(e) => {
+                            error!(
+                                "{} Failed to validate code {}: {}",
+                                log_prefix, code.code, e
+                            );
+                        }
                     }
-                ).await;
+
+                    tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                })
+                .await;
 
             if let Err(e) = result {
-                error!("{} Mutex error while validating code {}: {}", log_prefix, code_clone.code, e);
+                error!(
+                    "{} Mutex error while validating code {}: {}",
+                    log_prefix, code_clone.code, e
+                );
             }
         }
 

@@ -1,16 +1,17 @@
-use crate::{types::GameCode, config::Settings};
-use reqwest::Client;
-use scraper::{Html, Selector};
+use crate::{config::Settings, types::GameCode};
 use anyhow::Context;
-use tracing::{debug, warn};
 use chrono::Utc;
 use regex::Regex;
+use reqwest::Client;
+use scraper::{Html, Selector};
+use tracing::{debug, warn};
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://honkai-star-rail.fandom.com/wiki/Redemption_Code";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -28,7 +29,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let citation_regex = Regex::new(r"\[\d+\]").unwrap();
 
     // Select the table containing the codes
-    let table_selector = Selector::parse("#mw-content-text > div.mw-parser-output > table > tbody > tr").unwrap();
+    let table_selector =
+        Selector::parse("#mw-content-text > div.mw-parser-output > table > tbody > tr").unwrap();
 
     for row in document.select(&table_selector) {
         let text = row.text().collect::<String>();
@@ -55,7 +57,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
             let code = code_match.as_str().to_string();
 
             // Extract rewards text and split by "Discovered"
-            let rewards_text = clean_text[code_match.end()..].trim()
+            let rewards_text = clean_text[code_match.end()..]
+                .trim()
                 .split("Discovered")
                 .next()
                 .unwrap_or("")

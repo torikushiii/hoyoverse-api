@@ -1,9 +1,9 @@
-use anyhow::Result;
-use fred::prelude::*;
-use fred::types::{RedisConfig, PerformanceConfig, ReconnectPolicy, Expiration};
-use fred::interfaces::ClientLike;
 use crate::mutex::DistributedMutex;
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use anyhow::Result;
+use fred::interfaces::ClientLike;
+use fred::prelude::*;
+use fred::types::{Expiration, PerformanceConfig, ReconnectPolicy, RedisConfig};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[derive(Clone)]
 pub struct RedisConnection {
@@ -13,7 +13,11 @@ pub struct RedisConnection {
 }
 
 impl RedisConnection {
-    pub async fn new(url: &str, database: u8, rate_limit: crate::config::RateLimitConfig) -> Result<Self> {
+    pub async fn new(
+        url: &str,
+        database: u8,
+        rate_limit: crate::config::RateLimitConfig,
+    ) -> Result<Self> {
         let mut config = RedisConfig::from_url(url)?;
 
         config.database = Some(database);
@@ -60,13 +64,9 @@ impl RedisConnection {
     }
 
     pub async fn set_cached(&self, key: &str, value: &str, expires_in: i64) -> anyhow::Result<()> {
-        self.client.set::<(), _, _>(
-            key,
-            value,
-            Some(Expiration::EX(expires_in)),
-            None,
-            false
-        ).await?;
+        self.client
+            .set::<(), _, _>(key, value, Some(Expiration::EX(expires_in)), None, false)
+            .await?;
         tracing::debug!("Set cache for key: {}", key);
         Ok(())
     }
@@ -76,23 +76,23 @@ impl RedisConnection {
             .format(&Rfc3339)
             .unwrap_or_default();
 
-        self.client.hincrby::<i64, _, _>(
-            "metrics:user_agents",
-            user_agent,
-            1
-        ).await?;
+        self.client
+            .hincrby::<i64, _, _>("metrics:user_agents", user_agent, 1)
+            .await?;
 
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as f64;
         let entry = vec![(timestamp, format!("{}:{}", now, user_agent))];
 
-        self.client.zadd::<bool, _, _>(
-            "metrics:user_agents:timeline",
-            None,
-            None,
-            false,
-            false,
-            entry
-        ).await?;
+        self.client
+            .zadd::<bool, _, _>(
+                "metrics:user_agents:timeline",
+                None,
+                None,
+                false,
+                false,
+                entry,
+            )
+            .await?;
 
         tracing::debug!("Logged user agent: {}", user_agent);
         Ok(())
@@ -103,23 +103,23 @@ impl RedisConnection {
             .format(&Rfc3339)
             .unwrap_or_default();
 
-        self.client.hincrby::<i64, _, _>(
-            "metrics:endpoints",
-            endpoint,
-            1
-        ).await?;
+        self.client
+            .hincrby::<i64, _, _>("metrics:endpoints", endpoint, 1)
+            .await?;
 
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as f64;
         let entry = vec![(timestamp, format!("{}:{}", now, endpoint))];
 
-        self.client.zadd::<bool, _, _>(
-            "metrics:endpoints:timeline",
-            None,
-            None,
-            false,
-            false,
-            entry
-        ).await?;
+        self.client
+            .zadd::<bool, _, _>(
+                "metrics:endpoints:timeline",
+                None,
+                None,
+                false,
+                false,
+                entry,
+            )
+            .await?;
 
         tracing::debug!("Logged endpoint hit: {}", endpoint);
         Ok(())
@@ -127,7 +127,7 @@ impl RedisConnection {
 
     pub fn from_client(
         client: RedisClient,
-        rate_limit_config: crate::config::RateLimitConfig
+        rate_limit_config: crate::config::RateLimitConfig,
     ) -> Self {
         Self {
             client,

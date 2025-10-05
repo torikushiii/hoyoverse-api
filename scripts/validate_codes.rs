@@ -1,14 +1,8 @@
-use std::sync::Arc;
 use hoyoverse_api::{
-    config::Settings,
-    db::DatabaseConnections,
-    services::code_validator::CodeValidationService,
+    config::Settings, db::DatabaseConnections, services::code_validator::CodeValidationService,
 };
-use tracing_subscriber::{
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    fmt::format::FmtSpan,
-};
+use std::sync::Arc;
+use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,8 +16,7 @@ async fn main() -> anyhow::Result<()> {
         .compact();
 
     let filter = tracing_subscriber::EnvFilter::new(
-        std::env::var("RUST_LOG")
-            .unwrap_or_else(|_| "debug".to_string())
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string()),
     )
     .add_directive("html5ever=warn".parse().unwrap())
     .add_directive("selectors=warn".parse().unwrap())

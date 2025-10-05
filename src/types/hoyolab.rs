@@ -42,7 +42,8 @@ where
     }
 
     match TimestampFormat::deserialize(deserializer)? {
-        TimestampFormat::String(s) => s.parse::<i64>()
+        TimestampFormat::String(s) => s
+            .parse::<i64>()
             .map_err(|e| Error::custom(format!("Failed to parse string timestamp: {}", e))),
         TimestampFormat::Integer(i) => Ok(i),
     }

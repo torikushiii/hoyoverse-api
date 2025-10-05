@@ -1,16 +1,17 @@
-use crate::{types::GameCode, config::Settings};
-use reqwest::Client;
-use scraper::{Html, Selector, ElementRef};
+use crate::{config::Settings, types::GameCode};
 use anyhow::Context;
-use tracing::{debug, warn, error};
 use chrono::Utc;
 use regex::Regex;
+use reqwest::Client;
+use scraper::{ElementRef, Html, Selector};
+use tracing::{debug, error, warn};
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://genshin-impact.fandom.com/wiki/Promotional_Code";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -66,10 +67,16 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
         warn!("[Genshin][Codes][Fandom] No active codes found");
         error!("[Genshin][Codes][Fandom] Tables found: {}", tables.len());
         if let Some(table) = tables.first() {
-            error!("[Genshin][Codes][Fandom] First table HTML: {}", table.html());
+            error!(
+                "[Genshin][Codes][Fandom] First table HTML: {}",
+                table.html()
+            );
         }
     } else {
-        debug!("[Genshin][Codes][Fandom] Found {} active codes", codes.len());
+        debug!(
+            "[Genshin][Codes][Fandom] Found {} active codes",
+            codes.len()
+        );
     }
 
     Ok(codes)
@@ -78,7 +85,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 fn parse_rewards(rewards_text: &str) -> Option<Vec<String>> {
     let re = Regex::new(r"([^×]+)×\s*(\d+(?:,\d+)?)").unwrap();
 
-    let rewards: Vec<String> = re.captures_iter(rewards_text)
+    let rewards: Vec<String> = re
+        .captures_iter(rewards_text)
         .map(|cap| {
             let item = cap[1].trim();
             let amount = &cap[2];

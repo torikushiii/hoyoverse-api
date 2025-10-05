@@ -1,15 +1,12 @@
-use axum::{
-    Router,
-    routing::get,
-    extract::State,
-    http::HeaderMap,
-    response::Json,
+use super::{
+    utils::{self, NewsQuery},
+    AppState,
 };
-use crate::types::{CodesResponse, NewsItemResponse, CalendarResponse};
-use super::{AppState, utils::{self, NewsQuery}};
+use crate::config::Settings;
 use crate::error::ApiError;
 use crate::resolvers::genshin::GenshinResolver;
-use crate::config::Settings;
+use crate::types::{CalendarResponse, CodesResponse, NewsItemResponse};
+use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 use tracing::{debug, error};
 
 pub fn routes() -> Router<AppState> {
@@ -65,7 +62,8 @@ async fn calendar(
     }
 
     let cache_key = "genshin_calendar";
-    let cached_data = db.get_cached_data("calendar".to_string(), cache_key.to_string())
+    let cached_data = db
+        .get_cached_data("calendar".to_string(), cache_key.to_string())
         .await
         .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
 
@@ -92,7 +90,9 @@ async fn calendar(
         }
         Err(e) => {
             error!("Failed to fetch calendar data: {}", e);
-            Err(ApiError::internal_server_error("Failed to fetch calendar data"))
+            Err(ApiError::internal_server_error(
+                "Failed to fetch calendar data",
+            ))
         }
     }
 }

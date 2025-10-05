@@ -1,29 +1,26 @@
 use axum::{
-    response::Json,
-    extract::{State, Query, Path},
+    extract::{Path, Query, State},
     http::HeaderMap,
+    response::Json,
 };
 use futures_util::TryStreamExt;
 use mongodb::bson;
 use serde::Deserialize;
 use tracing::{debug, error};
 
+use super::AppState;
 use crate::{
     error::ApiError,
-    types::{GameCode, CodesResponse, NewsItem, GameCodeResponse, NewsItemResponse},
+    types::{CodesResponse, GameCode, GameCodeResponse, NewsItem, NewsItemResponse},
     utils::lang::parse_language_code,
 };
-use super::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct NewsQuery {
     pub lang: Option<String>,
 }
 
-pub async fn log_endpoint_metrics(
-    endpoint: &str,
-    state: &AppState,
-) {
+pub async fn log_endpoint_metrics(endpoint: &str, state: &AppState) {
     let (db, _) = state;
     if let Err(e) = db.redis.log_endpoint_hit(endpoint).await {
         error!("Failed to log endpoint metrics: {}", e);
@@ -59,7 +56,9 @@ pub async fn handle_codes(
     }
 
     let cache_key = format!("{}_codes", game_name);
-    let cached_data = db.redis.get_cached(&cache_key)
+    let cached_data = db
+        .redis
+        .get_cached(&cache_key)
         .await
         .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
 
@@ -70,7 +69,9 @@ pub async fn handle_codes(
         }
     }
 
-    let collection = db.mongo.collection::<GameCode>(&format!("{}_codes", game_name));
+    let collection = db
+        .mongo
+        .collection::<GameCode>(&format!("{}_codes", game_name));
 
     let active_filter = bson::doc! { "active": true };
     let mut active = Vec::new();
@@ -147,14 +148,19 @@ pub async fn handle_news(
         "event" | "events" => "event",
         "notice" | "notices" => "notice",
         "info" | "information" => "info",
-        _ => return Err(ApiError::bad_request("Invalid category"))
+        _ => return Err(ApiError::bad_request("Invalid category")),
     };
 
     let lang = query.lang.as_deref().unwrap_or("en");
     let normalized_lang = parse_language_code(lang);
 
-    let cache_key = format!("{}_news_{}_{}", game_name, normalized_category, normalized_lang);
-    let cached_data = db.redis.get_cached(&cache_key)
+    let cache_key = format!(
+        "{}_news_{}_{}",
+        game_name, normalized_category, normalized_lang
+    );
+    let cached_data = db
+        .redis
+        .get_cached(&cache_key)
         .await
         .map_err(|e| ApiError::cache_error(format!("Cache error: {}", e)))?;
 
@@ -165,7 +171,9 @@ pub async fn handle_news(
         }
     }
 
-    let collection = db.mongo.collection::<NewsItem>(&format!("{}_news", game_name));
+    let collection = db
+        .mongo
+        .collection::<NewsItem>(&format!("{}_news", game_name));
 
     let filter = bson::doc! {
         "type": normalized_category,
@@ -190,9 +198,7 @@ pub async fn handle_news(
     if news.is_empty() {
         debug!(
             "No news items found for category: {} with language: {}. Filter: {:?}",
-            category,
-            normalized_lang,
-            filter
+            category, normalized_lang, filter
         );
         return Err(ApiError::not_found("No news items found"));
     }

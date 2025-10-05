@@ -1,16 +1,17 @@
-use crate::{types::GameCode, config::Settings};
-use reqwest::Client;
-use scraper::{Html, Selector};
+use crate::{config::Settings, types::GameCode};
 use anyhow::Context;
-use tracing::{debug, warn};
 use chrono::Utc;
 use regex::Regex;
+use reqwest::Client;
+use scraper::{Html, Selector};
+use tracing::{debug, warn};
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Zenless-Zone-Zero/archives/435683";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -54,7 +55,9 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
             // Get code from first column - look for input element
             if let Some(code_col) = columns.get(0) {
                 let code = if let Some(input) = code_col.select(&input_selector).next() {
-                    input.value().attr("value")
+                    input
+                        .value()
+                        .attr("value")
                         .unwrap_or("")
                         .trim()
                         .to_uppercase()
@@ -68,21 +71,23 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
 
                 // Get rewards from second column - look for div.align elements
                 if let Some(rewards_col) = columns.get(1) {
-                    let rewards: Vec<String> = rewards_col.select(&align_div_selector)
-                         .filter_map(|div| {
-                             let text = div.text().collect::<String>();
-                             let cleaned = text.trim()
-                                 .replace('\n', " ")
-                                 .split_whitespace()
-                                 .collect::<Vec<&str>>()
-                                 .join(" ");
-                             if cleaned.is_empty() {
-                                 None
-                             } else {
-                                 Some(cleaned)
-                             }
-                         })
-                         .collect();
+                    let rewards: Vec<String> = rewards_col
+                        .select(&align_div_selector)
+                        .filter_map(|div| {
+                            let text = div.text().collect::<String>();
+                            let cleaned = text
+                                .trim()
+                                .replace('\n', " ")
+                                .split_whitespace()
+                                .collect::<Vec<&str>>()
+                                .join(" ");
+                            if cleaned.is_empty() {
+                                None
+                            } else {
+                                Some(cleaned)
+                            }
+                        })
+                        .collect();
 
                     if !rewards.is_empty() {
                         codes.push(GameCode {

@@ -1,8 +1,8 @@
-mod redis;
 mod mongo;
+mod redis;
 
-pub use redis::RedisConnection;
 pub use mongo::MongoConnection;
+pub use redis::RedisConnection;
 
 pub struct DatabaseConnections {
     pub mongo: MongoConnection,
@@ -16,17 +16,21 @@ impl DatabaseConnections {
             &config.redis.url,
             config.redis.database,
             config.redis.rate_limit.clone(),
-        ).await?;
+        )
+        .await?;
 
         Ok(Self { mongo, redis })
     }
 
-    pub async fn get_cached_data(&self, collection: String, key: String) -> anyhow::Result<Option<String>> {
+    pub async fn get_cached_data(
+        &self,
+        collection: String,
+        key: String,
+    ) -> anyhow::Result<Option<String>> {
         let mutex = self.redis.create_mutex().await?;
 
-        mutex.acquire(
-            format!("cache_operation:{collection}:{key}"),
-            || async {
+        mutex
+            .acquire(format!("cache_operation:{collection}:{key}"), || async {
                 if let Some(data) = self.redis.get_cached(&key).await? {
                     return Ok(Some(data));
                 }
@@ -37,7 +41,7 @@ impl DatabaseConnections {
                 }
 
                 Ok(None)
-            }
-        ).await?
+            })
+            .await?
     }
 }

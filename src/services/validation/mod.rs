@@ -1,11 +1,7 @@
 use async_trait::async_trait;
 use reqwest::Client;
 
-use crate::{
-    config::GameAccount,
-    error::ValidationResult,
-    types::HoyolabResponse,
-};
+use crate::{config::GameAccount, error::ValidationResult, types::HoyolabResponse};
 
 #[async_trait]
 pub trait GameValidator {
@@ -17,7 +13,12 @@ pub trait GameValidator {
         false
     }
 
-    fn build_query_params<'a>(&self, code: &'a str, account: &'a GameAccount, timestamp: i64) -> Vec<(&'static str, String)> {
+    fn build_query_params<'a>(
+        &self,
+        code: &'a str,
+        account: &'a GameAccount,
+        timestamp: i64,
+    ) -> Vec<(&'static str, String)> {
         vec![
             ("cdkey", code.to_string()),
             ("uid", account.uid.clone()),
@@ -28,7 +29,12 @@ pub trait GameValidator {
         ]
     }
 
-    async fn validate_code(&self, client: &Client, code: &str, account: &GameAccount) -> anyhow::Result<ValidationResult> {
+    async fn validate_code(
+        &self,
+        client: &Client,
+        code: &str,
+        account: &GameAccount,
+    ) -> anyhow::Result<ValidationResult> {
         if self.should_skip_validation(code) {
             return Ok(ValidationResult::Valid);
         }
@@ -39,16 +45,24 @@ pub trait GameValidator {
         let response = client
             .get(self.api_endpoint())
             .query(&query_params)
-            .header("Cookie", format!(
-                "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-                account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
-            ))
+            .header(
+                "Cookie",
+                format!(
+                    "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
+                    account.cookie_token_v2, account.account_mid_v2, account.account_id_v2
+                ),
+            )
             .send()
             .await?;
 
         let status = response.status();
         if !status.is_success() {
-            tracing::error!("[{}] Failed HTTP request for code {}: Status {}", self.game_name(), code, status);
+            tracing::error!(
+                "[{}] Failed HTTP request for code {}: Status {}",
+                self.game_name(),
+                code,
+                status
+            );
             return Ok(ValidationResult::Unknown(
                 status.as_u16() as i32,
                 format!("Status {}", status),
@@ -56,18 +70,20 @@ pub trait GameValidator {
         }
 
         let response_body: HoyolabResponse = response.json().await?;
-        Ok(crate::error::HoyolabRetcode::from_code(response_body.retcode)
-            .map(|rc| rc.into_validation_result())
-            .unwrap_or_else(|| {
-                tracing::error!(
-                    "[{}] Unknown response code {} for code {}: {}",
-                    self.game_name(),
-                    response_body.retcode,
-                    code,
-                    response_body.message
-                );
-                ValidationResult::Unknown(response_body.retcode, response_body.message)
-            }))
+        Ok(
+            crate::error::HoyolabRetcode::from_code(response_body.retcode)
+                .map(|rc| rc.into_validation_result())
+                .unwrap_or_else(|| {
+                    tracing::error!(
+                        "[{}] Unknown response code {} for code {}: {}",
+                        self.game_name(),
+                        response_body.retcode,
+                        code,
+                        response_body.message
+                    );
+                    ValidationResult::Unknown(response_body.retcode, response_body.message)
+                }),
+        )
     }
 }
 
@@ -109,7 +125,12 @@ impl GameValidator for GenshinValidator {
         "Genshin"
     }
 
-    fn build_query_params<'a>(&self, code: &'a str, account: &'a GameAccount, timestamp: i64) -> Vec<(&'static str, String)> {
+    fn build_query_params<'a>(
+        &self,
+        code: &'a str,
+        account: &'a GameAccount,
+        timestamp: i64,
+    ) -> Vec<(&'static str, String)> {
         vec![
             ("cdkey", code.to_string()),
             ("uid", account.uid.clone()),

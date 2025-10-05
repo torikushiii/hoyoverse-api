@@ -1,15 +1,17 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
-    let url = "https://gamerant.com/zenless-zone-zero-zzz-code-livestream-redeem-codes-free-polychrome/";
+    let url =
+        "https://gamerant.com/zenless-zone-zero-zzz-code-livestream-redeem-codes-free-polychrome/";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -43,7 +45,7 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
     if let Some(table) = document.select(&table_selector).next() {
         for row in table.select(&tr_selector) {
             let columns: Vec<_> = row.select(&td_selector).collect();
-            
+
             // Skip rows that don't have exactly 2 columns (code and rewards)
             if columns.len() != 2 {
                 continue;
@@ -52,19 +54,21 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
             // Get code from first column - look for anchor tag
             if let Some(code_col) = columns.get(0) {
                 let code = if let Some(anchor) = code_col.select(&a_selector).next() {
-                     anchor.text().collect::<String>().trim().to_uppercase()
-                 } else {
-                     code_col.text()
-                         .collect::<String>()
-                         .trim()
-                         .replace("(PC Only)", "")
-                         .trim()
-                         .to_uppercase()
-                 };
+                    anchor.text().collect::<String>().trim().to_uppercase()
+                } else {
+                    code_col
+                        .text()
+                        .collect::<String>()
+                        .trim()
+                        .replace("(PC Only)", "")
+                        .trim()
+                        .to_uppercase()
+                };
 
                 // Get rewards from second column
                 if let Some(rewards_col) = columns.get(1) {
-                    let rewards: Vec<String> = rewards_col.select(&li_selector)
+                    let rewards: Vec<String> = rewards_col
+                        .select(&li_selector)
                         .map(|li| li.text().collect::<String>().trim().to_string())
                         .filter(|reward| !reward.is_empty())
                         .collect();

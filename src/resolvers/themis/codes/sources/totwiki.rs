@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://tot.wiki/wiki/Redeem_Code";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -38,8 +39,12 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
                 for part in rewards_text.split(',') {
                     let part = part.trim();
-                    if current_reward.chars().last().map_or(false, |c| c.is_ascii_digit())
-                       && part.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+                    if current_reward
+                        .chars()
+                        .last()
+                        .map_or(false, |c| c.is_ascii_digit())
+                        && part.chars().next().map_or(false, |c| c.is_ascii_digit())
+                    {
                         // If current reward ends with number and next part starts with number,
                         // treat it as a thousands separator
                         current_reward.push(',');

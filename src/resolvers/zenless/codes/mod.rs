@@ -3,8 +3,8 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-use crate::{types::GameCode, config::Settings};
-use sources::{game8, gamerant, pcgamesn, hoyolab, dudcode, zzzgg};
+use crate::{config::Settings, types::GameCode};
+use sources::{dudcode, game8, gamerant, hoyolab, pcgamesn, zzzgg};
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let mut codes = Vec::new();

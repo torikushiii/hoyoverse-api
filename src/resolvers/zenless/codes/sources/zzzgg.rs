@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://zzz.gg/codes";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -49,7 +50,7 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
             for reward_element in row.select(&reward_selector) {
                 if let (Some(count_element), Some(name_element)) = (
                     reward_element.select(&count_selector).next(),
-                    reward_element.select(&name_selector).next()
+                    reward_element.select(&name_selector).next(),
                 ) {
                     let count_str = count_element.text().collect::<String>().trim().to_string();
                     let name_str = name_element.text().collect::<String>().trim().to_string();

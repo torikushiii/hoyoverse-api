@@ -1,22 +1,26 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Genshin-Impact/archives/304759";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
         .context("Failed to fetch Game8 page")?;
 
     if !response.status().is_success() {
-        warn!("[Genshin][Codes][Game8] Failed to fetch data, status: {}", response.status());
+        warn!(
+            "[Genshin][Codes][Game8] Failed to fetch data, status: {}",
+            response.status()
+        );
         return Ok(Vec::new());
     }
 
@@ -60,9 +64,13 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                             continue;
                         }
 
-                        if part.chars().next().map_or(false, |c| c.is_ascii_digit()) &&
-                           !current_reward.is_empty() &&
-                           current_reward.chars().last().map_or(false, |c| c.is_ascii_digit()) {
+                        if part.chars().next().map_or(false, |c| c.is_ascii_digit())
+                            && !current_reward.is_empty()
+                            && current_reward
+                                .chars()
+                                .last()
+                                .map_or(false, |c| c.is_ascii_digit())
+                        {
                             current_reward.push(',');
                             current_reward.push_str(part);
                         } else {
@@ -96,7 +104,10 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     if codes.is_empty() {
         warn!("[Genshin][Codes][Game8] No codes found");
     } else {
-        debug!("[Genshin][Codes][Game8] Fetched {} codes total", codes.len());
+        debug!(
+            "[Genshin][Codes][Game8] Fetched {} codes total",
+            codes.len()
+        );
     }
 
     Ok(codes)

@@ -1,21 +1,16 @@
-use axum::{
-    Router,
-    routing::get,
-    response::Json,
-    extract::State,
-};
-use serde::Serialize;
-use std::sync::Arc;
 use crate::db::DatabaseConnections;
 use crate::ratelimit::RateLimiter;
 use crate::utils::datetime::get_uptime;
+use axum::{extract::State, response::Json, routing::get, Router};
+use serde::Serialize;
+use std::sync::Arc;
 
-mod utils;
 mod genshin;
-mod starrail;
-mod zenless;
-mod themis;
 mod honkai;
+mod starrail;
+mod themis;
+mod utils;
+mod zenless;
 
 pub type AppState = (Arc<DatabaseConnections>, Arc<RateLimiter>);
 
@@ -37,9 +32,7 @@ struct ApiInfo {
     endpoints: Vec<String>,
 }
 
-async fn root_handler(
-    state: State<AppState>
-) -> Json<ApiInfo> {
+async fn root_handler(state: State<AppState>) -> Json<ApiInfo> {
     utils::log_endpoint_metrics("/", &state.0).await;
 
     Json(ApiInfo {

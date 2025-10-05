@@ -15,11 +15,17 @@ async fn test_fandom_fetch() {
 
     if !codes.is_empty() {
         for code in &codes {
-            assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+            assert!(
+                !code.rewards.is_empty(),
+                "Code should have rewards: {}",
+                code.code
+            );
             assert_eq!(code.source, "fandom");
 
-            println!("Found Fandom code: {} with rewards: {:?}, active: {}",
-                code.code, code.rewards, code.active);
+            println!(
+                "Found Fandom code: {} with rewards: {:?}, active: {}",
+                code.code, code.rewards, code.active
+            );
         }
     }
 }
@@ -34,13 +40,23 @@ async fn test_fetch_codes() {
 
     if !codes.is_empty() {
         for code in &codes {
-            assert!(!code.rewards.is_empty(), "Code should have rewards: {}", code.code);
+            assert!(
+                !code.rewards.is_empty(),
+                "Code should have rewards: {}",
+                code.code
+            );
             assert_eq!(code.source, "fandom");
 
-            assert!(unique_codes.insert(&code.code), "Found duplicate code: {}", code.code);
+            assert!(
+                unique_codes.insert(&code.code),
+                "Found duplicate code: {}",
+                code.code
+            );
 
-            println!("Found code from {}: {} with rewards: {:?}, active: {}",
-                code.source, code.code, code.rewards, code.active);
+            println!(
+                "Found code from {}: {} with rewards: {:?}, active: {}",
+                code.source, code.code, code.rewards, code.active
+            );
         }
 
         println!("Total unique codes found: {}", unique_codes.len());

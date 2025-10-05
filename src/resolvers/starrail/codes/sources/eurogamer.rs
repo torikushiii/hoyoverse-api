@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://www.eurogamer.net/honkai-star-rail-codes-livestream-active-working-how-to-redeem-9321";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -37,7 +38,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let strong_selector = Selector::parse("strong").unwrap();
 
     for item in document.select(&list_selector) {
-        let code = item.select(&strong_selector)
+        let code = item
+            .select(&strong_selector)
             .next()
             .map(|s| s.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
@@ -66,10 +68,14 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
         let mut current_rewards = Vec::new();
         let mut count = 0;
 
-        for cell in table.text().collect::<String>().split('\n')
+        for cell in table
+            .text()
+            .collect::<String>()
+            .split('\n')
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
-            .skip(3) // Skip header rows
+            .skip(3)
+        // Skip header rows
         {
             match count % 3 {
                 0 => current_code = cell.to_string(),
@@ -85,7 +91,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                             source: "eurogamer".to_string(),
                         });
                     }
-                },
+                }
                 _ => unreachable!(),
             }
             count += 1;

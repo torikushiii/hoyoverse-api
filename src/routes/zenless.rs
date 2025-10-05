@@ -1,13 +1,10 @@
-use axum::{
-    Router,
-    routing::get,
-    extract::State,
-    http::HeaderMap,
-    response::Json,
+use super::{
+    utils::{self, NewsQuery},
+    AppState,
 };
-use crate::types::{CodesResponse, NewsItemResponse};
-use super::{AppState, utils::{self, NewsQuery}};
 use crate::error::ApiError;
+use crate::types::{CodesResponse, NewsItemResponse};
+use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 
 pub fn routes() -> Router<AppState> {
     Router::new()

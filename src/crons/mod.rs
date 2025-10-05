@@ -1,14 +1,14 @@
-mod starrail;
 mod genshin;
-mod zenless;
-mod themis;
 mod honkai;
+mod starrail;
+mod themis;
+mod zenless;
 
+use crate::config::Settings;
+use crate::db::DatabaseConnections;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
 use tracing::info;
-use crate::db::DatabaseConnections;
-use crate::config::Settings;
 
 pub struct Scheduler {
     db: Arc<DatabaseConnections>,

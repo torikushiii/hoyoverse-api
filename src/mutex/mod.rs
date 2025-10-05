@@ -1,5 +1,5 @@
-use tracing::{debug, error};
 use anyhow::Context;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 const LUA_SCRIPT: &str = include_str!("mutex.lua");
@@ -26,12 +26,14 @@ impl DistributedMutex {
             .await
             .context("failed to load mutex Lua script")?;
 
-        let lock_fn = lib.functions()
+        let lock_fn = lib
+            .functions()
             .get("mutex_lock")
             .context("failed to get mutex_lock function")?
             .clone();
 
-        let unlock_fn = lib.functions()
+        let unlock_fn = lib
+            .functions()
             .get("mutex_unlock")
             .context("failed to get mutex_unlock function")?
             .clone();
@@ -55,13 +57,18 @@ impl DistributedMutex {
         // Try to acquire the lock
         for attempt in 0..max_attempts {
             let args: Vec<String> = vec![lock_id.clone(), "30".to_string()];
-            match self.lock_fn
+            match self
+                .lock_fn
                 .fcall::<i64, _, _, Vec<String>>(&self.redis, &[&key], args)
                 .await
             {
                 Ok(1) => {
                     acquired = true;
-                    debug!("Acquired mutex lock for key '{}' on attempt {}", key, attempt + 1);
+                    debug!(
+                        "Acquired mutex lock for key '{}' on attempt {}",
+                        key,
+                        attempt + 1
+                    );
                     break;
                 }
                 Ok(0) => {
@@ -89,7 +96,8 @@ impl DistributedMutex {
 
         // Release the lock
         let args: Vec<String> = vec![lock_id];
-        match self.unlock_fn
+        match self
+            .unlock_fn
             .fcall::<i64, _, _, Vec<String>>(&self.redis, &[&key], args)
             .await
         {
@@ -97,7 +105,10 @@ impl DistributedMutex {
                 debug!("Released mutex lock for key '{}'", key);
             }
             Ok(0) => {
-                error!("Failed to release mutex lock for key '{}' - lock was lost", key);
+                error!(
+                    "Failed to release mutex lock for key '{}' - lock was lost",
+                    key
+                );
                 return Err(MutexError::LockLost);
             }
             Ok(_) => {

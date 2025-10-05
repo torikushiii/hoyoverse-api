@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://game8.co/games/Honkai-Star-Rail/archives/410296";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -30,7 +31,11 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
     // Find the correct section by title
     for title in document.select(&title_selector) {
-        if title.text().collect::<String>().contains("Active Redeem Codes for") {
+        if title
+            .text()
+            .collect::<String>()
+            .contains("Active Redeem Codes for")
+        {
             if let Some(table) = document.select(&table_selector).next() {
                 for row in table.select(&row_selector).skip(1) {
                     let cells: Vec<_> = row.select(&cell_selector).collect();

@@ -1,6 +1,6 @@
-use std::borrow::Cow;
 use axum::{response::IntoResponse, Json};
 use hyper::{HeaderMap, StatusCode};
+use std::borrow::Cow;
 use tracing::error;
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -62,7 +62,7 @@ impl ApiError {
     pub fn new(
         status_code: StatusCode,
         error_code: ApiErrorCode,
-        error: impl Into<Cow<'static, str>>
+        error: impl Into<Cow<'static, str>>,
     ) -> Self {
         let error_message = error.into();
         error!("API Error: {} - {}", error_code.as_str(), error_message);
@@ -71,7 +71,8 @@ impl ApiError {
             status_code,
             error_code,
             error: error_message,
-            status: status_code.canonical_reason()
+            status: status_code
+                .canonical_reason()
                 .unwrap_or("unknown status code")
                 .into(),
             extra_headers: None,
@@ -82,7 +83,7 @@ impl ApiError {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorCode::Unknown,
-            error
+            error,
         )
     }
 
@@ -90,7 +91,7 @@ impl ApiError {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorCode::DatabaseError,
-            error
+            error,
         )
     }
 
@@ -98,7 +99,7 @@ impl ApiError {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorCode::CacheError,
-            error
+            error,
         )
     }
 
@@ -106,24 +107,16 @@ impl ApiError {
         Self::new(
             StatusCode::TOO_MANY_REQUESTS,
             ApiErrorCode::RateLimitExceeded,
-            error
+            error,
         )
     }
 
     pub fn not_found(error: impl Into<Cow<'static, str>>) -> Self {
-        Self::new(
-            StatusCode::NOT_FOUND,
-            ApiErrorCode::ResourceNotFound,
-            error
-        )
+        Self::new(StatusCode::NOT_FOUND, ApiErrorCode::ResourceNotFound, error)
     }
 
     pub fn bad_request(error: impl Into<Cow<'static, str>>) -> Self {
-        Self::new(
-            StatusCode::BAD_REQUEST,
-            ApiErrorCode::BadRequest,
-            error
-        )
+        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::BadRequest, error)
     }
 
     pub fn with_extra_headers(mut self, headers: HeaderMap) -> Self {
@@ -195,12 +188,12 @@ impl HoyolabRetcode {
     pub fn is_valid_code(self) -> bool {
         matches!(
             self,
-            Self::Success |
-            Self::AlreadyRedeemed |
-            Self::AlreadyRedeemedAlt |
-            Self::InGameRedemption |
-            Self::Cooldown |
-            Self::LevelRequirement
+            Self::Success
+                | Self::AlreadyRedeemed
+                | Self::AlreadyRedeemedAlt
+                | Self::InGameRedemption
+                | Self::Cooldown
+                | Self::LevelRequirement
         )
     }
 }
