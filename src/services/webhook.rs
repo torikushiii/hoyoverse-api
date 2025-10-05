@@ -6,10 +6,10 @@ use tracing::{error, info};
 use crate::{config::Settings, types::GameCode};
 
 const COLORS: [(u32, &str); 4] = [
-    (0x9370DB, "starrail"),   // Purple-pinkish (Medium Purple)
-    (0x00FFFF, "genshin"),    // Cyan
-    (0xFFD700, "themis"),     // Yellow (Gold)
-    (0xD2691E, "zenless"),    // Orange-brownish (Chocolate)
+    (0x9370DB, "starrail"), // Purple-pinkish (Medium Purple)
+    (0x00FFFF, "genshin"),  // Cyan
+    (0xFFD700, "themis"),   // Yellow (Gold)
+    (0xD2691E, "zenless"),  // Orange-brownish (Chocolate)
 ];
 
 #[derive(Debug, Serialize)]
@@ -48,7 +48,11 @@ impl WebhookService {
         }
     }
 
-    pub async fn send_new_code_notification(&self, code: &GameCode, game_type: &str) -> anyhow::Result<()> {
+    pub async fn send_new_code_notification(
+        &self,
+        code: &GameCode,
+        game_type: &str,
+    ) -> anyhow::Result<()> {
         if let Some(webhook_url) = self.config.discord.webhook_url.as_ref() {
             let color = COLORS
                 .iter()
@@ -72,7 +76,10 @@ impl WebhookService {
 
             let embed = DiscordEmbed {
                 title: format!("New {} Code!", game_name),
-                description: format!("A new redemption code has been discovered for {}!", game_name),
+                description: format!(
+                    "A new redemption code has been discovered for {}!",
+                    game_name
+                ),
                 color,
                 fields: vec![
                     EmbedField {
@@ -92,13 +99,12 @@ impl WebhookService {
                 embeds: vec![embed],
             };
 
-            match self.client.post(webhook_url)
-                .json(&payload)
-                .send()
-                .await
-            {
+            match self.client.post(webhook_url).json(&payload).send().await {
                 Ok(response) if response.status().is_success() => {
-                    info!("[{}] Successfully sent webhook notification for code {}", game_type, code.code);
+                    info!(
+                        "[{}] Successfully sent webhook notification for code {}",
+                        game_type, code.code
+                    );
                     Ok(())
                 }
                 Ok(response) => {
@@ -110,11 +116,7 @@ impl WebhookService {
                     Err(anyhow::anyhow!("Failed to send webhook notification"))
                 }
                 Err(e) => {
-                    error!(
-                        "[{}] Error sending webhook notification: {}",
-                        game_type,
-                        e
-                    );
+                    error!("[{}] Error sending webhook notification: {}", game_type, e);
                     Err(anyhow::anyhow!("Error sending webhook notification"))
                 }
             }
@@ -123,7 +125,10 @@ impl WebhookService {
         }
     }
 
-    pub async fn send_invalid_credentials_notification(&self, game_type: &str) -> anyhow::Result<()> {
+    pub async fn send_invalid_credentials_notification(
+        &self,
+        game_type: &str,
+    ) -> anyhow::Result<()> {
         if let Some(webhook_url) = self.config.discord.webhook_url.as_ref() {
             let color = 0xFF0000;
 
@@ -150,24 +155,25 @@ impl WebhookService {
             };
 
             match self.client.post(webhook_url).json(&payload).send().await {
-                Ok(response) if response.status().is_success() => {
-                    Ok(())
-                }
+                Ok(response) if response.status().is_success() => Ok(()),
                 Ok(response) => {
                     error!(
                         "[{}] Failed to send invalid credentials notification. Status: {}",
                         game_type,
                         response.status()
                     );
-                    Err(anyhow::anyhow!("Failed to send invalid credentials notification"))
+                    Err(anyhow::anyhow!(
+                        "Failed to send invalid credentials notification"
+                    ))
                 }
                 Err(e) => {
                     error!(
                         "[{}] Error sending invalid credentials notification: {}",
-                        game_type,
-                        e
+                        game_type, e
                     );
-                    Err(anyhow::anyhow!("Error sending invalid credentials notification"))
+                    Err(anyhow::anyhow!(
+                        "Error sending invalid credentials notification"
+                    ))
                 }
             }
         } else {

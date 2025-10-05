@@ -1,16 +1,17 @@
-use crate::{types::GameCode, config::Settings};
-use reqwest::Client;
-use scraper::{Html, Selector};
+use crate::{config::Settings, types::GameCode};
 use anyhow::Context;
-use tracing::debug;
 use chrono::Utc;
 use regex::Regex;
+use reqwest::Client;
+use scraper::{Html, Selector};
+use tracing::debug;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://honkaiimpact3.fandom.com/wiki/Exchange_Rewards";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -49,18 +50,17 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
             let occasion = cells[2].text().collect::<String>().trim().to_string();
 
-            let mut rewards: Vec<String> = cells[3].select(&reward_box_selector)
+            let mut rewards: Vec<String> = cells[3]
+                .select(&reward_box_selector)
                 .filter_map(|reward| {
-                    reward.select(&reward_text_selector)
-                        .next()
-                        .map(|div| {
-                            div.text()
-                                .collect::<String>()
-                                .trim()
-                                .replace('\u{a0}', " ")
-                                .replace("  ", " ")
-                                .to_string()
-                        })
+                    reward.select(&reward_text_selector).next().map(|div| {
+                        div.text()
+                            .collect::<String>()
+                            .trim()
+                            .replace('\u{a0}', " ")
+                            .replace("  ", " ")
+                            .to_string()
+                    })
                 })
                 .filter(|s| !s.is_empty())
                 .collect();
@@ -69,9 +69,7 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                 rewards = vec![occasion];
             }
 
-            let expiration_text = cells[4].text().collect::<String>()
-                .trim()
-                .to_lowercase();
+            let expiration_text = cells[4].text().collect::<String>().trim().to_lowercase();
 
             let is_active = expiration_text != "yes";
 

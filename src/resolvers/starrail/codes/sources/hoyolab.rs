@@ -1,11 +1,11 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
+use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use anyhow::Context;
-use tracing::{debug, warn};
-use chrono::Utc;
 use std::collections::HashMap;
-use once_cell::sync::Lazy;
+use tracing::{debug, warn};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct HoyolabResponse {
@@ -60,10 +60,22 @@ where
 
 static REWARD_HASHES: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
     let mut m = HashMap::new();
-    m.insert("77cb5426637574ba524ac458fa963da0_6409817950389238658", "Stellar Jade");
-    m.insert("7cb0e487e051f177d3f41de8d4bbc521_2556290033227986328", "Refined Aether");
-    m.insert("508229a94e4fa459651f64c1cd02687a_6307505132287490837", "Traveler's Guide");
-    m.insert("0b12bdf76fa4abc6b4d1fdfc0fb4d6f5_4521150989210768295", "Credit");
+    m.insert(
+        "77cb5426637574ba524ac458fa963da0_6409817950389238658",
+        "Stellar Jade",
+    );
+    m.insert(
+        "7cb0e487e051f177d3f41de8d4bbc521_2556290033227986328",
+        "Refined Aether",
+    );
+    m.insert(
+        "508229a94e4fa459651f64c1cd02687a_6307505132287490837",
+        "Traveler's Guide",
+    );
+    m.insert(
+        "0b12bdf76fa4abc6b4d1fdfc0fb4d6f5_4521150989210768295",
+        "Credit",
+    );
     m
 });
 
@@ -71,7 +83,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .header("x-rpc-app_version", "2.42.0")
         .header("x-rpc-client_type", "4")
@@ -93,16 +106,20 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let current_time = Utc::now();
     let mut codes = Vec::new();
 
-    if let Some(exchange_module) = hoyolab_data.data.modules.iter()
-        .find(|m| m.exchange_group.is_some()) {
-
-        if let Some(bonuses) = exchange_module.exchange_group.as_ref()
-            .map(|g| &g.bonuses) {
-
+    if let Some(exchange_module) = hoyolab_data
+        .data
+        .modules
+        .iter()
+        .find(|m| m.exchange_group.is_some())
+    {
+        if let Some(bonuses) = exchange_module.exchange_group.as_ref().map(|g| &g.bonuses) {
             for bonus in bonuses.iter().filter(|b| b.code_status == "ON") {
-                let rewards: Vec<String> = bonus.icon_bonuses.iter()
+                let rewards: Vec<String> = bonus
+                    .icon_bonuses
+                    .iter()
                     .map(|icon_bonus| {
-                        let reward_name = REWARD_HASHES.iter()
+                        let reward_name = REWARD_HASHES
+                            .iter()
                             .find(|(hash, _)| icon_bonus.icon_url.contains(*hash))
                             .map(|(_, name)| *name)
                             .unwrap_or("Unknown");

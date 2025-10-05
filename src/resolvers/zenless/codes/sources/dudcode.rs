@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://www.dudcode.com/code/zenless-zone-zero-codes/";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -77,7 +78,8 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
         }
 
         if !current_reward.trim().is_empty() {
-            rewards.push(current_reward.trim().replace("Ppolychromes", "Polychromes")); // xd?
+            rewards.push(current_reward.trim().replace("Ppolychromes", "Polychromes"));
+            // xd?
         }
 
         if code.is_empty() || rewards.is_empty() {

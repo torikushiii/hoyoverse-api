@@ -1,4 +1,4 @@
-use md5::{Md5, Digest as _};
+use md5::{Digest as _, Md5};
 use rand::Rng;
 use std::time::{SystemTime, UNIX_EPOCH};
 

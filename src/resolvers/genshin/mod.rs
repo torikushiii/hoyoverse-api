@@ -1,12 +1,12 @@
 use crate::{
-    types::{GameCode, NewsItem, CalendarResponse},
     config::Settings,
     db::MongoConnection,
+    types::{CalendarResponse, GameCode, NewsItem},
 };
 
+pub mod calendar;
 pub mod codes;
 pub mod news;
-pub mod calendar;
 
 pub struct GenshinResolver;
 
@@ -19,7 +19,10 @@ impl GenshinResolver {
         news::fetch_news(config, category).await
     }
 
-    pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> anyhow::Result<CalendarResponse> {
+    pub async fn fetch_calendar(
+        config: &Settings,
+        mongo: &MongoConnection,
+    ) -> anyhow::Result<CalendarResponse> {
         calendar::fetch_calendar(config, mongo).await
     }
 }

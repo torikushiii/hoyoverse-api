@@ -1,28 +1,34 @@
-use std::sync::Arc;
-use tokio_cron_scheduler::{JobScheduler, Job};
-use tracing::{info, error, debug};
+use crate::{
+    config::Settings,
+    db::DatabaseConnections,
+    resolvers::zenless::{
+        news::sources::hoyolab::{
+            NewsResolver as ZenlessNewsResolver, SUPPORTED_LANGUAGES as ZENLESS_LANGUAGES,
+        },
+        ZenlessResolver,
+    },
+    services::code_verification::CodeVerificationService,
+};
 use mongodb::{
     bson::{self, doc, Document},
     Collection,
 };
-use crate::{
-    db::DatabaseConnections,
-    resolvers::zenless::{ZenlessResolver, news::sources::hoyolab::{
-        NewsResolver as ZenlessNewsResolver,
-        SUPPORTED_LANGUAGES as ZENLESS_LANGUAGES
-    }},
-    config::Settings,
-    services::code_verification::CodeVerificationService,
-};
+use std::sync::Arc;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing::{debug, error, info};
 
 async fn check_collection_empty(collection: &Collection<Document>) -> bool {
     match collection.count_documents(doc! {}).await {
         Ok(count) => count == 0,
-        Err(_) => true
+        Err(_) => true,
     }
 }
 
-async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Result<(), Box<dyn std::error::Error>> {
+async fn schedule_codes(
+    sched: &JobScheduler,
+    db: Arc<DatabaseConnections>,
+    config: Arc<Settings>,
+) -> Result<(), Box<dyn std::error::Error>> {
     sched.add(Job::new_async("0 */5 * * * *", move |_, _| {
         let db = db.clone();
         let config = config.clone();
@@ -113,7 +119,11 @@ async fn schedule_codes(sched: &JobScheduler, db: Arc<DatabaseConnections>, conf
     Ok(())
 }
 
-async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Result<(), Box<dyn std::error::Error>> {
+async fn schedule_news(
+    sched: &JobScheduler,
+    db: Arc<DatabaseConnections>,
+    config: Arc<Settings>,
+) -> Result<(), Box<dyn std::error::Error>> {
     sched.add(Job::new_async("0 */20 * * * *", move |_, _| {
         let db = db.clone();
         let config = config.clone();
@@ -210,7 +220,11 @@ async fn schedule_news(sched: &JobScheduler, db: Arc<DatabaseConnections>, confi
     Ok(())
 }
 
-pub async fn schedule_tasks(sched: &JobScheduler, db: Arc<DatabaseConnections>, config: Arc<Settings>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn schedule_tasks(
+    sched: &JobScheduler,
+    db: Arc<DatabaseConnections>,
+    config: Arc<Settings>,
+) -> Result<(), Box<dyn std::error::Error>> {
     schedule_codes(sched, db.clone(), config.clone()).await?;
     schedule_news(sched, db.clone(), config.clone()).await?;
     Ok(())

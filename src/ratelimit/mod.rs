@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use anyhow::{Result, Context};
-use tracing::{error, debug};
+use anyhow::{Context, Result};
+use axum::http::HeaderMap;
+use fred::clients::RedisClient;
 use fred::prelude::*;
 use fred::types::{Function, Library, PerformanceConfig, ReconnectPolicy};
-use fred::clients::RedisClient;
 use std::net::IpAddr;
-use axum::http::HeaderMap;
+use std::sync::Arc;
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct RateLimitResponse {
@@ -71,7 +71,8 @@ impl RateLimiter {
         let redis_key = key.clone();
         debug!("Checking rate limit for key: {}", redis_key);
 
-        let result: Vec<i64> = self.ratelimit
+        let result: Vec<i64> = self
+            .ratelimit
             .fcall(
                 &self.redis_client,
                 vec![redis_key],
@@ -89,8 +90,10 @@ impl RateLimiter {
                 anyhow::anyhow!("Failed to check rate limit: {}", e)
             })?;
 
-        debug!("Rate limit result for {}: remaining={}, reset={}",
-            key, result[0], result[1]);
+        debug!(
+            "Rate limit result for {}: remaining={}, reset={}",
+            key, result[0], result[1]
+        );
 
         Ok(RateLimitResponse {
             remaining: result[0],
@@ -119,7 +122,10 @@ impl RateLimiter {
         };
 
         let redis_key = format!("ratelimit:{}:{}", normalized_ip, resource);
-        debug!("Checking rate limit for IP {} on resource {}", normalized_ip, resource);
+        debug!(
+            "Checking rate limit for IP {} on resource {}",
+            normalized_ip, resource
+        );
 
         self.check_rate_limit(
             redis_key,
@@ -132,24 +138,25 @@ impl RateLimiter {
     }
 
     fn get_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
-        if let Some(ip) = headers.get("CF-Connecting-IP")
+        if let Some(ip) = headers
+            .get("CF-Connecting-IP")
             .and_then(|h| h.to_str().ok())
             .and_then(|ip| ip.parse::<IpAddr>().ok())
         {
             return Some(ip.to_canonical());
         }
 
-        if let Some(ip) = headers.get("X-Real-IP")
+        if let Some(ip) = headers
+            .get("X-Real-IP")
             .and_then(|h| h.to_str().ok())
             .and_then(|ip| ip.parse::<IpAddr>().ok())
         {
             return Some(ip.to_canonical());
         }
 
-        if let Some(forwarded) = headers.get("X-Forwarded-For")
-            .and_then(|h| h.to_str().ok())
-        {
-            if let Some(ip) = forwarded.split(',')
+        if let Some(forwarded) = headers.get("X-Forwarded-For").and_then(|h| h.to_str().ok()) {
+            if let Some(ip) = forwarded
+                .split(',')
                 .next()
                 .and_then(|ip| ip.trim().parse::<IpAddr>().ok())
             {
@@ -161,7 +168,8 @@ impl RateLimiter {
     }
 
     fn get_user_agent(headers: &HeaderMap) -> Option<String> {
-        headers.get("user-agent")
+        headers
+            .get("user-agent")
             .and_then(|h| h.to_str().ok())
             .map(|s| s.to_string())
     }
@@ -172,21 +180,21 @@ impl RateLimiter {
         headers: &HeaderMap,
         config: &crate::config::RateLimitConfig,
     ) -> Result<RateLimitResponse> {
-        let ip = Self::get_real_ip(headers)
-            .unwrap_or_else(|| "0.0.0.0".parse().unwrap());
+        let ip = Self::get_real_ip(headers).unwrap_or_else(|| "0.0.0.0".parse().unwrap());
 
         if let Some(user_agent) = Self::get_user_agent(headers) {
-            let redis_conn = crate::db::RedisConnection::from_client(
-                self.redis_client.clone(),
-                config.clone()
-            );
+            let redis_conn =
+                crate::db::RedisConnection::from_client(self.redis_client.clone(), config.clone());
 
             if let Err(e) = redis_conn.log_user_agent(&user_agent).await {
                 error!("Failed to log user agent: {}", e);
             }
         }
 
-        debug!("Rate limit check for IP {} (from headers) on resource {}", ip, resource);
+        debug!(
+            "Rate limit check for IP {} (from headers) on resource {}",
+            ip, resource
+        );
 
         self.check_rate_limit_with_ip(resource, ip, config).await
     }

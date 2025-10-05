@@ -1,11 +1,11 @@
-pub mod types;
-pub mod routes;
 pub mod config;
+pub mod crons;
 pub mod db;
+pub mod error;
+pub mod mutex;
 pub mod ratelimit;
 pub mod resolvers;
-pub mod crons;
-pub mod utils;
+pub mod routes;
 pub mod services;
-pub mod mutex;
-pub mod error;
+pub mod types;
+pub mod utils;

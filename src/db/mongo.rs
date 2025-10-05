@@ -1,5 +1,5 @@
-use mongodb::{Client as MongoClient, Database, options::ClientOptions};
 use bson::Document;
+use mongodb::{options::ClientOptions, Client as MongoClient, Database};
 
 pub struct MongoConnection {
     db: Database,
@@ -24,7 +24,11 @@ impl MongoConnection {
         self.db.collection(name)
     }
 
-    pub async fn get_document(&self, collection: &str, key: &str) -> anyhow::Result<Option<String>> {
+    pub async fn get_document(
+        &self,
+        collection: &str,
+        key: &str,
+    ) -> anyhow::Result<Option<String>> {
         let collection = self.db.collection::<Document>(collection);
 
         if let Some(doc) = collection.find_one(bson::doc! { "_id": key }).await? {

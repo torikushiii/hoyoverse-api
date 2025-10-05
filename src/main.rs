@@ -1,30 +1,22 @@
+use axum::Router;
+use hyper::header::{HeaderName, HeaderValue};
+use hyper::{Method, Request, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use axum::Router;
+use std::time::Duration;
 use tower_http::{
-    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
     compression::{CompressionLayer, CompressionLevel},
-    request_id::{MakeRequestId, RequestId, SetRequestIdLayer, PropagateRequestIdLayer},
+    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+    request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::TraceLayer,
 };
 use tracing::{error, Span};
-use tracing_subscriber::{
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    fmt::format::FmtSpan
-};
-use hyper::{Request, Response, Method};
-use hyper::header::{HeaderName, HeaderValue};
+use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
-use std::time::Duration;
 
 use hoyoverse_api::{
-    config::Settings,
-    db::DatabaseConnections,
-    ratelimit::RateLimiter,
-    crons::Scheduler,
+    config::Settings, crons::Scheduler, db::DatabaseConnections, ratelimit::RateLimiter, routes,
     services::code_validator::CodeValidationService,
-    routes,
 };
 
 use hoyoverse_api::utils::datetime::set_start_time;
@@ -40,8 +32,7 @@ impl MakeRequestId for TraceRequestId {
         const UUID_ERROR_MSG: &str = "UUID should be valid header value";
 
         Some(RequestId::new(
-            HeaderValue::from_str(&Uuid::new_v4().to_string())
-                .expect(UUID_ERROR_MSG)
+            HeaderValue::from_str(&Uuid::new_v4().to_string()).expect(UUID_ERROR_MSG),
         ))
     }
 }
@@ -63,8 +54,7 @@ async fn main() -> anyhow::Result<()> {
         .compact();
 
     let filter = tracing_subscriber::EnvFilter::new(
-        std::env::var("RUST_LOG")
-            .unwrap_or_else(|_| config.logging.level.clone())
+        std::env::var("RUST_LOG").unwrap_or_else(|_| config.logging.level.clone()),
     )
     .add_directive("html5ever=warn".parse().unwrap())
     .add_directive("selectors=warn".parse().unwrap())
@@ -104,18 +94,15 @@ async fn main() -> anyhow::Result<()> {
     } else {
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(
-                config.server.cors_origins.iter()
-                    .map(|origin| {
-                        HeaderValue::from_str(origin)
-                            .expect("Invalid CORS origin")
-                    })
-                    .collect::<Vec<_>>()
+                config
+                    .server
+                    .cors_origins
+                    .iter()
+                    .map(|origin| HeaderValue::from_str(origin).expect("Invalid CORS origin"))
+                    .collect::<Vec<_>>(),
             ))
             .allow_methods(AllowMethods::list([Method::GET]))
-            .allow_headers(AllowHeaders::list([
-                CONTENT_TYPE,
-                X_REQUEST_ID,
-            ]))
+            .allow_headers(AllowHeaders::list([CONTENT_TYPE, X_REQUEST_ID]))
             .max_age(const { Duration::from_secs(7200) })
     };
 

@@ -3,7 +3,7 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
 use sources::totwiki;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {

@@ -1,15 +1,16 @@
-use crate::{types::GameCode, config::Settings};
+use crate::{config::Settings, types::GameCode};
+use anyhow::Context;
+use chrono::Utc;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use anyhow::Context;
 use tracing::{debug, warn};
-use chrono::Utc;
 
 pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
     let client = Client::new();
     let url = "https://www.prydwen.gg/star-rail/";
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("User-Agent", &config.server.user_agent)
         .send()
         .await
@@ -27,7 +28,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
 
     for box_element in document.select(&box_selector) {
         if let Some(code_element) = box_element.select(&code_selector).next() {
-            let code = code_element.text()
+            let code = code_element
+                .text()
                 .collect::<String>()
                 .trim()
                 .replace("NEW!", "")
@@ -38,17 +40,19 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
                 continue;
             }
 
-            let rewards = if let Some(rewards_element) = box_element.select(&rewards_selector).next() {
-                rewards_element.text()
-                    .collect::<String>()
-                    .trim()
-                    .split('+')
-                    .map(|reward| reward.trim().to_string())
-                    .filter(|reward| !reward.is_empty())
-                    .collect()
-            } else {
-                Vec::new()
-            };
+            let rewards =
+                if let Some(rewards_element) = box_element.select(&rewards_selector).next() {
+                    rewards_element
+                        .text()
+                        .collect::<String>()
+                        .trim()
+                        .split('+')
+                        .map(|reward| reward.trim().to_string())
+                        .filter(|reward| !reward.is_empty())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
 
             codes.push(GameCode {
                 id: None,

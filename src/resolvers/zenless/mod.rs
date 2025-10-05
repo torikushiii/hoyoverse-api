@@ -2,8 +2,8 @@ pub mod codes;
 pub mod news;
 
 use crate::{
-    types::{GameCode, NewsItem},
     config::Settings,
+    types::{GameCode, NewsItem},
 };
 
 pub struct ZenlessResolver;
