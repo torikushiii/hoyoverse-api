@@ -1,34 +1,37 @@
 use anyhow::Result;
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
-use tracing::{debug, error};
 use mongodb::bson::doc;
 use regex::escape;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
+use tracing::{debug, error};
 
 use crate::{
-    types::{
-        StarRailCalendarResponse as ApiResponse,
-        calendar::{StarRailCalendarResponse, Event, StarRailBanner, Character, Challenge, Reward, LightCone},
-    },
     config::Settings,
-    utils::generate_ds::generate_ds,
     db::MongoConnection,
+    types::{
+        calendar::{
+            Challenge, Character, Event, LightCone, Reward, StarRailBanner,
+            StarRailCalendarResponse,
+        },
+        starrail::{GameChallenge, GameEvent},
+        StarRailCalendarResponse as ApiResponse,
+    },
+    utils::generate_ds::generate_ds,
 };
 
-const CALENDAR_URL: &str = "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
+const CALENDAR_URL: &str =
+    "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
 
 async fn get_event_image(mongo: &MongoConnection, event_name: &str) -> Option<String> {
     let events = mongo.collection::<mongodb::bson::Document>("events");
 
     if let Ok(Some(event)) = events
-        .find_one(
-            doc! {
-                "name": {
-                    "$regex": format!(".*{}.*", escape(event_name)),
-                    "$options": "i"
-                },
-                "game": "starrail"
-            }
-        )
+        .find_one(doc! {
+            "name": {
+                "$regex": format!(".*{}.*", escape(event_name)),
+                "$options": "i"
+            },
+            "game": "starrail"
+        })
         .await
     {
         event.get_str("imageUrl").ok().map(String::from)
@@ -37,14 +40,29 @@ async fn get_event_image(mongo: &MongoConnection, event_name: &str) -> Option<St
     }
 }
 
-pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Result<StarRailCalendarResponse> {
+pub async fn fetch_calendar(
+    config: &Settings,
+    mongo: &MongoConnection,
+) -> Result<StarRailCalendarResponse> {
     debug!("Fetching StarRail calendar data");
 
-    let account = config.game_accounts.starrail.first()
+    let account = config
+        .game_accounts
+        .starrail
+        .first()
         .ok_or_else(|| anyhow::anyhow!("No StarRail account configured"))?;
 
+    debug!(
+        server = %account.region,
+        role_id = %account.uid,
+        "Preparing StarRail calendar request"
+    );
+
     let mut headers = HeaderMap::new();
-    headers.insert(USER_AGENT, HeaderValue::from_str(&config.server.user_agent)?);
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(&config.server.user_agent)?,
+    );
     headers.insert("DS", HeaderValue::from_str(&generate_ds())?);
     headers.insert("x-rpc-app_version", HeaderValue::from_static("1.5.0"));
     headers.insert("x-rpc-client_type", HeaderValue::from_static("5"));
@@ -54,33 +72,66 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
         "Cookie",
         HeaderValue::from_str(&format!(
             "cookie_token_v2={}; account_mid_v2={}; account_id_v2={}",
-            account.cookie_token_v2,
-            account.account_mid_v2,
-            account.account_id_v2,
-        ))?
+            account.cookie_token_v2, account.account_mid_v2, account.account_id_v2,
+        ))?,
     );
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
         .build()?;
 
-    let response = client
-        .get(CALENDAR_URL)
-        .query(&[
-            ("server", &account.region),
-            ("role_id", &account.uid),
-        ])
-        .send()
-        .await?;
+    let query_params = [
+        ("server", account.region.as_str()),
+        ("role_id", account.uid.as_str()),
+    ];
 
-    let calendar: ApiResponse = response.json().await?;
+    let response = client.get(CALENDAR_URL).query(&query_params).send().await?;
+
+    let status = response.status();
+    let response_text = response.text().await?;
+
+    debug!(
+        status = %status,
+        "Received StarRail calendar response"
+    );
+
+    if !status.is_success() {
+        error!(
+            status = %status,
+            body = %response_text,
+            "StarRail calendar request returned non-success status"
+        );
+        anyhow::bail!(
+            "Calendar request failed with status {}: {}",
+            status,
+            response_text
+        );
+    }
+
+    let calendar: ApiResponse = serde_json::from_str(&response_text).map_err(|err| {
+        error!(
+            status = %status,
+            body = %response_text,
+            error = %err,
+            "Failed to decode StarRail calendar response body"
+        );
+        anyhow::Error::from(err)
+    })?;
 
     if calendar.retcode != 0 {
-        error!("Failed to fetch calendar data: {}", calendar.message);
+        error!(
+            status = %status,
+            retcode = calendar.retcode,
+            message = %calendar.message,
+            body = %response_text,
+            "StarRail calendar API returned error retcode"
+        );
         anyhow::bail!("API error: {}", calendar.message);
     }
 
-    let data = calendar.data.ok_or_else(|| anyhow::anyhow!("No calendar data"))?;
+    let data = calendar
+        .data
+        .ok_or_else(|| anyhow::anyhow!("No calendar data"))?;
 
     let mut banners = Vec::new();
 
@@ -88,7 +139,9 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
         let start_time = pool.time_info.start_ts.parse::<i64>()?;
         let end_time = pool.time_info.end_ts.parse::<i64>()?;
 
-        let characters = pool.avatar_list.into_iter()
+        let characters = pool
+            .avatar_list
+            .into_iter()
             .map(|char| Character {
                 id: char.item_id,
                 name: char.item_name,
@@ -114,7 +167,9 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
         let start_time = pool.time_info.start_ts.parse::<i64>()?;
         let end_time = pool.time_info.end_ts.parse::<i64>()?;
 
-        let light_cones = pool.equip_list.into_iter()
+        let light_cones = pool
+            .equip_list
+            .into_iter()
             .map(|cone| LightCone {
                 id: cone.item_id,
                 name: cone.item_name,
@@ -137,22 +192,34 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
 
     let mut events = Vec::new();
     for event in data.act_list {
-        if event.time_info.start_ts == "0" || event.time_info.end_ts == "0" {
+        let GameEvent {
+            id,
+            name,
+            panel_desc,
+            act_type,
+            reward_list,
+            special_reward,
+            time_info,
+            ..
+        } = event;
+
+        if time_info.start_ts == "0" || time_info.end_ts == "0" {
             continue;
         }
 
-        let start_time = event.time_info.start_ts.parse::<i64>()?;
-        let end_time = event.time_info.end_ts.parse::<i64>()?;
+        let start_time = time_info.start_ts.parse::<i64>()?;
+        let end_time = time_info.end_ts.parse::<i64>()?;
 
         events.push(Event {
-            id: event.id,
-            name: event.name.clone(),
-            description: event.panel_desc,
-            image_url: get_event_image(mongo, &event.name).await,
-            type_name: event.act_type,
+            id,
+            name: name.clone(),
+            description: panel_desc,
+            image_url: get_event_image(mongo, &name).await,
+            type_name: act_type,
             start_time,
             end_time,
-            rewards: event.reward_list.into_iter()
+            rewards: reward_list
+                .into_iter()
                 .map(|reward| Reward {
                     id: reward.item_id,
                     name: reward.name,
@@ -161,32 +228,45 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
                     amount: reward.num,
                 })
                 .collect(),
-            special_reward: if event.special_reward.item_id != 0 {
-                Some(Reward {
-                    id: event.special_reward.item_id,
-                    name: event.special_reward.name,
-                    icon: event.special_reward.icon,
-                    rarity: event.special_reward.rarity,
-                    amount: event.special_reward.num,
-                })
-            } else {
-                None
-            },
+            special_reward: special_reward.and_then(|reward| {
+                if reward.item_id != 0 {
+                    Some(Reward {
+                        id: reward.item_id,
+                        name: reward.name,
+                        icon: reward.icon,
+                        rarity: reward.rarity,
+                        amount: reward.num,
+                    })
+                } else {
+                    None
+                }
+            }),
         });
     }
 
     let mut challenges = Vec::new();
     for challenge in data.challenge_list {
-        let start_time = challenge.time_info.start_ts.parse::<i64>()?;
-        let end_time = challenge.time_info.end_ts.parse::<i64>()?;
+        let GameChallenge {
+            group_id,
+            name_mi18n,
+            challenge_type,
+            reward_list,
+            special_reward,
+            time_info,
+            ..
+        } = challenge;
+
+        let start_time = time_info.start_ts.parse::<i64>()?;
+        let end_time = time_info.end_ts.parse::<i64>()?;
 
         challenges.push(Challenge {
-            id: challenge.group_id,
-            name: challenge.name_mi18n,
-            type_name: challenge.challenge_type,
+            id: group_id,
+            name: name_mi18n,
+            type_name: challenge_type,
             start_time,
             end_time,
-            rewards: challenge.reward_list.into_iter()
+            rewards: reward_list
+                .into_iter()
                 .map(|reward| Reward {
                     id: reward.item_id,
                     name: reward.name,
@@ -195,19 +275,28 @@ pub async fn fetch_calendar(config: &Settings, mongo: &MongoConnection) -> Resul
                     amount: reward.num,
                 })
                 .collect(),
-            special_reward: if challenge.special_reward.item_id != 0 {
-                Some(Reward {
-                    id: challenge.special_reward.item_id,
-                    name: challenge.special_reward.name,
-                    icon: challenge.special_reward.icon,
-                    rarity: challenge.special_reward.rarity,
-                    amount: challenge.special_reward.num,
-                })
-            } else {
-                None
-            },
+            special_reward: special_reward.and_then(|reward| {
+                if reward.item_id != 0 {
+                    Some(Reward {
+                        id: reward.item_id,
+                        name: reward.name,
+                        icon: reward.icon,
+                        rarity: reward.rarity,
+                        amount: reward.num,
+                    })
+                } else {
+                    None
+                }
+            }),
         });
     }
+
+    debug!(
+        events = events.len(),
+        banners = banners.len(),
+        challenges = challenges.len(),
+        "StarRail calendar data parsed successfully"
+    );
 
     Ok(StarRailCalendarResponse {
         events,

@@ -86,7 +86,8 @@ pub struct GameEvent {
     pub panel_desc: String,
     pub is_after_version: bool,
     pub sort_weight: i32,
-    pub special_reward: GameReward,
+    #[serde(default)]
+    pub special_reward: Option<GameReward>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,7 +100,8 @@ pub struct GameChallenge {
     pub status: String,
     pub time_info: TimeInfo,
     pub reward_list: Vec<GameReward>,
-    pub special_reward: GameReward,
+    #[serde(default)]
+    pub special_reward: Option<GameReward>,
 }
 
 #[derive(Debug, Deserialize)]
