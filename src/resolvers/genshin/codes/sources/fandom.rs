@@ -37,8 +37,8 @@ pub async fn fetch_codes(config: &Settings) -> anyhow::Result<Vec<GameCode>> {
         for row in rows {
             let cells: Vec<ElementRef> = row.select(&cell_selector).collect();
             if cells.len() >= 3 {
-                let server = cells[1].text().collect::<String>().trim().to_lowercase();
-                if server == "all" {
+                let server_text = cells[1].text().collect::<String>();
+                if is_supported_server(&server_text) {
                     let code_elements: Vec<String> = cells[0]
                         .select(&code_selector)
                         .map(|el| el.text().collect::<String>().trim().to_uppercase())
@@ -99,4 +99,20 @@ fn parse_rewards(rewards_text: &str) -> Option<Vec<String>> {
     } else {
         Some(rewards)
     }
+}
+
+fn is_supported_server(server_text: &str) -> bool {
+    let server = server_text.to_lowercase();
+
+    if server.contains("china") {
+        return false;
+    }
+
+    let supported_keywords = [
+        "all", "global", "america", "europe", "asia", "tw", "hk", "macao",
+    ];
+
+    supported_keywords
+        .iter()
+        .any(|keyword| server.contains(keyword))
 }
