@@ -54,16 +54,31 @@ fn parse_codes_from_html(document: &Html) -> anyhow::Result<Vec<GameCode>> {
                     if let Some(strong) = li.select(&strong_selector).next() {
                         let code = strong.text().collect::<String>().trim().to_string();
 
-                        // Get rewards text after the dash
+                        // Full text for the list item (includes code, dash, and rewards)
                         let full_text = li.text().collect::<String>();
-                        if let Some(rewards_text) = full_text.split('–').nth(1) {
-                            let cleaned_text =
-                                rewards_text.trim().replace("(NEW)", "").trim().to_string();
 
-                            // Replace ", and " with "," then split by comma
+                        // Extract rewards text appearing after a dash (supports -, – and —)
+                        let rewards_text =
+                            [" – ", " — ", " - ", "–", "—", "-"].iter().find_map(|sep| {
+                                full_text
+                                    .find(sep)
+                                    .map(|idx| full_text[idx + sep.len()..].to_string())
+                            });
+
+                        if let Some(rewards_text) = rewards_text {
+                            // Clean up markers and normalize conjunctions for splitting
+                            // Use ", " as the canonical separator to avoid splitting numeric thousands like "6,666"
+                            let cleaned_text = rewards_text
+                                .trim()
+                                .replace("(NEW)", "")
+                                .replace(", and ", ", ")
+                                .replace(" and ", ", ")
+                                .trim()
+                                .to_string();
+
+                            // Split only on comma+space to preserve number separators (e.g., 6,666; 20,000)
                             let rewards: Vec<String> = cleaned_text
-                                .replace(", and ", ",")
-                                .split(',')
+                                .split(", ")
                                 .map(|r| r.trim().to_string())
                                 .filter(|r| !r.is_empty())
                                 .collect();
