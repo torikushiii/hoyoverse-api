@@ -14,7 +14,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub struct CodeValidationService {
     db: Arc<DatabaseConnections>,
@@ -280,29 +280,33 @@ impl CodeValidationService {
                 .expect("Failed to create distributed mutex")
                 .acquire(format!("code_validation:{}", code.code), || async {
                     match validator(self, &code.code, test_account).await {
-                        Ok(result) => {
-                            match result {
-                                ValidationResult::Valid
-                                | ValidationResult::AlreadyRedeemed
-                                | ValidationResult::Cooldown => {
-                                    // Code is still considered valid
-                                }
-                                ValidationResult::InvalidCredentials => {
-                                    error!(
-                                        "{} Invalid credentials detected during validation",
-                                        log_prefix
-                                    );
-                                    return;
-                                }
-                                _ => {
-                                    info!(
-                                        "{} Code {} is no longer valid: {:?}",
-                                        log_prefix, code.code, result
-                                    );
-                                    codes_to_update.push(code);
-                                }
+                        Ok(result) => match result {
+                            ValidationResult::Valid
+                            | ValidationResult::AlreadyRedeemed
+                            | ValidationResult::Cooldown => {
+                                // Code is still considered valid
                             }
-                        }
+                            ValidationResult::Unknown(code, message) if code == -1009 => {
+                                warn!(
+                                    "{} Temporary system busy response for code {}: {}",
+                                    log_prefix, code_clone.code, message
+                                );
+                            }
+                            ValidationResult::InvalidCredentials => {
+                                error!(
+                                    "{} Invalid credentials detected during validation",
+                                    log_prefix
+                                );
+                                return;
+                            }
+                            _ => {
+                                info!(
+                                    "{} Code {} is no longer valid: {:?}",
+                                    log_prefix, code.code, result
+                                );
+                                codes_to_update.push(code);
+                            }
+                        },
                         Err(e) => {
                             error!(
                                 "{} Failed to validate code {}: {}",
