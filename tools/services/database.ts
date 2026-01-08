@@ -39,33 +39,42 @@ export class DatabaseService {
         );
     }
 
-    public async findNewEvents(events: Event[]): Promise<Event[]> {
-        const newEvents: Event[] = [];
+    public async upsertEvents(events: Event[]): Promise<{ inserted: number; updated: number }> {
+        if (events.length === 0) {
+            return { inserted: 0, updated: 0 };
+        }
+
+        let inserted = 0;
+        let updated = 0;
 
         for (const event of events) {
-            const exists = await this.eventsCollection.findOne({
-                name: event.name,
-                game: event.game
-            });
+            try {
+                const result = await this.eventsCollection.updateOne(
+                    { name: event.name, game: event.game },
+                    {
+                        $set: {
+                            imageUrl: event.imageUrl,
+                            ...(event.startTime !== undefined && { startTime: event.startTime }),
+                            ...(event.endTime !== undefined && { endTime: event.endTime }),
+                        },
+                        $setOnInsert: {
+                            name: event.name,
+                            game: event.game,
+                        }
+                    },
+                    { upsert: true }
+                );
 
-            if (!exists) {
-                newEvents.push(event);
+                if (result.upsertedCount > 0) {
+                    inserted++;
+                } else if (result.modifiedCount > 0) {
+                    updated++;
+                }
+            } catch (error) {
+                console.error(`Error upserting event "${event.name}":`, error);
             }
         }
 
-        return newEvents;
-    }
-
-    public async insertEvents(events: Event[]): Promise<void> {
-        if (events.length === 0) {
-            return;
-        }
-
-        try {
-            await this.eventsCollection.insertMany(events, { ordered: false });
-        } catch (error) {
-            console.error('Error inserting events:', error);
-            throw error;
-        }
+        return { inserted, updated };
     }
 }

@@ -19,6 +19,20 @@ use crate::{
 
 const CALENDAR_URL: &str =
     "https://sg-public-api.hoyolab.com/event/game_record/genshin/api/act_calendar";
+const WSRV_BASE: &str = "https://wsrv.nl/?url=";
+
+fn wrap_with_wsrv(url: &str) -> String {
+    if url.starts_with(WSRV_BASE) {
+        return url.to_string();
+    }
+
+    format!(
+        "{}{}{}",
+        WSRV_BASE,
+        urlencoding::encode(url),
+        "&output=webp&q=85"
+    )
+}
 
 async fn get_event_data(
     mongo: &MongoConnection,
@@ -36,7 +50,10 @@ async fn get_event_data(
         })
         .await
     {
-        let image_url = event.get_str("imageUrl").ok().map(String::from);
+        let image_url = event
+            .get_str("imageUrl")
+            .ok()
+            .map(|url| wrap_with_wsrv(url));
         let start_time = event.get_f64("startTime").ok().map(|t| t as i64);
         let end_time = event.get_f64("endTime").ok().map(|t| t as i64);
 

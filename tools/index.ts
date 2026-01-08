@@ -18,14 +18,13 @@ async function scrapeAndStore(): Promise<void> {
             return;
         }
 
-        const newEvents = await db.findNewEvents(events);
-        if (newEvents.length === 0) {
-            console.log('No new events found');
-            return;
-        }
+        const { inserted, updated } = await db.upsertEvents(events);
 
-        await db.insertEvents(newEvents);
-        console.log(`Successfully stored ${newEvents.length} new events`);
+        if (inserted === 0 && updated === 0) {
+            console.log('No changes to events');
+        } else {
+            console.log(`Events synced: ${inserted} inserted, ${updated} updated`);
+        }
 
     } catch (error) {
         console.error('Error in scrape and store process:', error);

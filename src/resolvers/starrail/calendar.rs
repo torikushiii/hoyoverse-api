@@ -20,6 +20,20 @@ use crate::{
 
 const CALENDAR_URL: &str =
     "https://sg-public-api.hoyolab.com/event/game_record/hkrpg/api/get_act_calender";
+const WSRV_BASE: &str = "https://wsrv.nl/?url=";
+
+fn wrap_with_wsrv(url: &str) -> String {
+    if url.starts_with(WSRV_BASE) {
+        return url.to_string();
+    }
+
+    format!(
+        "{}{}{}",
+        WSRV_BASE,
+        urlencoding::encode(url),
+        "&output=webp&q=85"
+    )
+}
 
 async fn get_event_image(mongo: &MongoConnection, event_name: &str) -> Option<String> {
     let events = mongo.collection::<mongodb::bson::Document>("events");
@@ -34,7 +48,10 @@ async fn get_event_image(mongo: &MongoConnection, event_name: &str) -> Option<St
         })
         .await
     {
-        event.get_str("imageUrl").ok().map(String::from)
+        event
+            .get_str("imageUrl")
+            .ok()
+            .map(|url| wrap_with_wsrv(url))
     } else {
         None
     }
