@@ -9,6 +9,7 @@ export class EventScraper {
     };
 
     private static readonly IGNORED_EVENT_TYPES = ["Test Run", "In-Person", "Web"];
+    private static readonly WSRV_BASE = "https://wsrv.nl/?url=";
 
     private static cleanImageUrl(url: string | undefined): string | null {
         if (!url) {
@@ -17,11 +18,15 @@ export class EventScraper {
         if (url.startsWith("data:image/gif;base64")) {
             return null;
         }
+
+        let cleanedUrl: string;
         if (url.includes("/scale-to-width-down/")) {
-            return url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/1000');
+            cleanedUrl = url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/1000');
+        } else {
+            cleanedUrl = url.replace(/(.+?\.(?:png|jpg|jpeg|gif))(\/revision.+)?/i, "$1");
         }
 
-        return url.replace(/(.+?\.(?:png|jpg|jpeg|gif))(\/revision.+)?/i, "$1");
+        return `${this.WSRV_BASE}${encodeURIComponent(cleanedUrl)}&output=webp&q=85`;
     }
 
     private static cleanEventName(name: string | undefined): string | null {
