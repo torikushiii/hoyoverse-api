@@ -34,7 +34,7 @@ pub struct GenshinBanner {
     pub name: String,
     pub version: String,
     #[serde(default)]
-    pub characters: Vec<Character>,
+    pub characters: Vec<GenshinCharacter>,
     #[serde(default)]
     pub weapons: Vec<GenshinWeapon>,
     pub start_time: i64,
@@ -47,7 +47,7 @@ pub struct StarRailBanner {
     pub name: String,
     pub version: String,
     #[serde(default)]
-    pub characters: Vec<Character>,
+    pub characters: Vec<StarRailCharacter>,
     #[serde(default)]
     pub light_cones: Vec<LightCone>,
     pub start_time: i64,
@@ -55,12 +55,21 @@ pub struct StarRailBanner {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Character {
+pub struct GenshinCharacter {
     pub id: String,
     pub name: String,
     pub rarity: String,
     pub element: String,
-    pub path: Option<String>,
+    pub icon: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StarRailCharacter {
+    pub id: String,
+    pub name: String,
+    pub rarity: String,
+    pub element: String,
+    pub path: String,
     pub icon: String,
 }
 

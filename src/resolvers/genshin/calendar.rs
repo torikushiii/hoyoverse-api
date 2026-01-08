@@ -10,7 +10,8 @@ use crate::{
     db::MongoConnection,
     types::{
         calendar::{
-            CalendarResponse, Challenge, Character, Event, GenshinBanner, GenshinWeapon, Reward,
+            CalendarResponse, Challenge, Event, GenshinBanner, GenshinCharacter, GenshinWeapon,
+            Reward,
         },
         GenshinCalendarResponse,
     },
@@ -151,12 +152,11 @@ pub async fn fetch_calendar(
             characters = pool
                 .avatars
                 .into_iter()
-                .map(|char| Character {
+                .map(|char| GenshinCharacter {
                     id: char.id.to_string(),
                     name: char.name,
                     rarity: char.rarity.to_string(),
                     element: char.element,
-                    path: None,
                     icon: char.icon,
                 })
                 .collect();

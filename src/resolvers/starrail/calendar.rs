@@ -9,8 +9,8 @@ use crate::{
     db::MongoConnection,
     types::{
         calendar::{
-            Challenge, Character, Event, LightCone, Reward, StarRailBanner,
-            StarRailCalendarResponse,
+            Challenge, Event, LightCone, Reward, StarRailBanner, StarRailCalendarResponse,
+            StarRailCharacter,
         },
         starrail::{GameChallenge, GameEvent},
         StarRailCalendarResponse as ApiResponse,
@@ -159,12 +159,12 @@ pub async fn fetch_calendar(
         let characters = pool
             .avatar_list
             .into_iter()
-            .map(|char| Character {
+            .map(|char| StarRailCharacter {
                 id: char.item_id,
                 name: char.item_name,
                 rarity: char.rarity,
                 element: char.damage_type,
-                path: Some(char.avatar_base_type),
+                path: char.avatar_base_type,
                 icon: char.icon_url,
             })
             .collect();
