@@ -1,0 +1,39 @@
+[package]
+name = "hoyoverse-api"
+version = "0.1.0"
+edition = "2021"
+default-run = "hoyoverse-api"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1"
+smart-default = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hyper = { version = "1", features = ["full"] }
+
+anyhow = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+toml = "0.8"
+
+mongodb = { version = "3.0", features = ["snappy-compression", "zlib-compression", "zstd-compression"] }
+bson = { version = "2.11", features = ["chrono-0_4"] }
+
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "compression-gzip", "compression-zstd"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.5"
+
+[[bin]]
+name = "test-parser"
+path = "scripts/test_parser.rs"
+
+[[bin]]
+name = "test-redemption"
+path = "scripts/test_redemption.rs"

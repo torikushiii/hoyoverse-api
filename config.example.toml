@@ -1,0 +1,38 @@
+[api]
+bind = "0.0.0.0:3939"
+
+[database]
+uri = "mongodb://localhost:27017"
+name = "hoyoverse"
+
+[validator]
+enabled = false
+interval_secs = 1800
+
+[validator.genshin]
+enabled = false
+cookie = ""
+uid = ""
+region = "os_usa"
+
+[validator.starrail]
+enabled = false
+cookie = ""
+uid = ""
+region = "os_usa"
+
+[validator.zenless]
+enabled = false
+cookie = ""
+uid = ""
+region = "os_usa"
+
+[validator.themis]
+enabled = false
+cookie = ""
+uid = ""
+region = "os_usa"
+
+[scraper]
+enabled = false
+interval_secs = 300

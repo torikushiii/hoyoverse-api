@@ -1,0 +1,6 @@
+config.toml
+target/
+dev.sh
+.dev.sh
+prod.sh
+.prod.sh
