@@ -8,7 +8,7 @@ use axum::Router;
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, MaxAge};
-use tower_http::trace::{DefaultOnFailure, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing::Span;
 
 use crate::global::Global;
@@ -37,15 +37,19 @@ fn app(global: Arc<Global>) -> Router {
                         .make_span_with(|req: &Request| {
                             tracing::info_span!(
                                 "request",
-                                "request.method" = %req.method(),
-                                "request.uri" = %req.uri(),
-                                "response.status_code" = tracing::field::Empty,
+                                method = %req.method(),
+                                uri = %req.uri(),
+                                status = tracing::field::Empty,
                             )
                         })
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG))
-                        .on_response(|res: &Response, _, span: &Span| {
-                            span.record("response.status_code", res.status().as_u16());
-                        }),
+                        .on_request(|req: &Request, _span: &Span| {
+                            tracing::info!(method = %req.method(), uri = %req.uri(), "incoming request");
+                        })
+                        .on_response(|res: &Response, latency: Duration, span: &Span| {
+                            span.record("status", res.status().as_u16());
+                            tracing::info!(status = res.status().as_u16(), latency = ?latency, "response");
+                        })
+                        .on_failure(()),
                 )
                 .layer(cors_layer()),
         )
