@@ -13,6 +13,7 @@
 use std::collections::HashMap;
 
 use hoyoverse_api::scraper::sources::genshin::{fandom as genshin_fandom, game8 as genshin_game8};
+use hoyoverse_api::scraper::sources::honkai::fandom as honkai_fandom;
 use hoyoverse_api::scraper::sources::starrail::{
     fandom as starrail_fandom, game8 as starrail_game8,
 };
@@ -143,6 +144,22 @@ async fn main() -> anyhow::Result<()> {
                 .collect()
         }
 
+        ("honkai", "fandom") => {
+            let wikitext = fetch_fandom_wikitext(
+                &client,
+                "https://honkaiimpact3.fandom.com/api.php",
+                "Exchange_Rewards",
+            )
+            .await?;
+            honkai_fandom::parse_wikitext(&wikitext)
+                .into_iter()
+                .map(|c| Code {
+                    code: c.code,
+                    rewards: c.rewards,
+                })
+                .collect()
+        }
+
         ("themis", "totwiki") => {
             let html = client
                 .get("https://tot.wiki/wiki/Redeem_Code")
@@ -244,5 +261,6 @@ fn print_known_combos() {
     eprintln!("  starrail  game8");
     eprintln!("  zenless   fandom");
     eprintln!("  zenless   game8");
+    eprintln!("  honkai    fandom");
     eprintln!("  themis    totwiki");
 }
