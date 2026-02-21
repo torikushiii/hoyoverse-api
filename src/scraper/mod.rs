@@ -18,6 +18,8 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
     tracing::info!(interval_secs, "starting scraper");
 
     loop {
+        sleep_until_aligned(interval_secs).await;
+
         let (r1, r2, r3, r4) = tokio::join!(
             sources::genshin::scrape_and_store(&global),
             sources::starrail::scrape_and_store(&global),
@@ -36,7 +38,5 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
         if let Err(e) = r4 {
             tracing::error!(error = %e, "themis scraper failed");
         }
-
-        sleep_until_aligned(interval_secs).await;
     }
 }

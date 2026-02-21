@@ -19,11 +19,11 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
     tracing::info!(interval_secs, "starting validator");
 
     loop {
+        sleep_until_aligned(interval_secs).await;
+
         if let Err(e) = validate_all_codes(&global).await {
             tracing::error!("validation cycle failed: {:#}", e);
         }
-
-        sleep_until_aligned(interval_secs).await;
     }
 }
 
