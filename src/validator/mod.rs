@@ -66,7 +66,7 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
             match hoyoverse_api::validate_code(global, game, &code.code).await {
                 Ok(resp) => {
                     if resp.is_expired() || resp.is_invalid() {
-                        tracing::info!(
+                        tracing::warn!(
                             code = code.code,
                             retcode = resp.retcode,
                             message = %resp.message,

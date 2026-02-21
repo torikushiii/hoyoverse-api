@@ -99,7 +99,16 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
             };
 
             if !valid {
-                tracing::info!(code, "skipping invalid code");
+                tracing::warn!(code, "code is invalid, storing as inactive");
+                collection
+                    .insert_one(RedemptionCode {
+                        code: code.clone(),
+                        active: false,
+                        date: bson::DateTime::now(),
+                        rewards: rewards.clone(),
+                        source: source.to_string(),
+                    })
+                    .await?;
                 tokio::time::sleep(std::time::Duration::from_secs(6)).await;
                 continue;
             }
