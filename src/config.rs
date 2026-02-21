@@ -26,6 +26,21 @@ pub struct ApiConfig {
     /// HTTP bind address
     #[default(SocketAddr::from(([0, 0, 0, 0], 8080)))]
     pub bind: SocketAddr,
+
+    /// Rate limiting configuration
+    pub rate_limit: RateLimitConfig,
+}
+
+#[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct RateLimitConfig {
+    /// Token replenish rate per second
+    #[default(2)]
+    pub per_second: u64,
+
+    /// Maximum burst size
+    #[default(120)]
+    pub burst_size: u32,
 }
 
 #[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]

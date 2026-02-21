@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -26,7 +27,7 @@ fn cors_layer() -> CorsLayer {
 
 fn app(global: Arc<Global>) -> Router {
     Router::new()
-        .nest("/mihoyo", routes::routes())
+        .nest("/mihoyo", routes::routes(&global))
         .with_state(global)
         .fallback(not_found)
         .layer(
@@ -70,9 +71,12 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
 
     tracing::info!(%bind, "http server listening");
 
-    axum::serve(listener, app(global))
-        .await
-        .context("http server error")?;
+    axum::serve(
+        listener,
+        app(global).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .context("http server error")?;
 
     Ok(())
 }

@@ -9,8 +9,10 @@ use crate::global::Global;
 
 pub mod codes;
 
-pub fn routes() -> Router<Arc<Global>> {
-    Router::new().route("/", get(root)).merge(codes::routes())
+pub fn routes(global: &Arc<Global>) -> Router<Arc<Global>> {
+    Router::new()
+        .route("/", get(root))
+        .merge(codes::routes(&global.config.api.rate_limit))
 }
 
 #[derive(serde::Serialize)]

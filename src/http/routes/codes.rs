@@ -1,16 +1,64 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{ConnectInfo, Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
+use tower_governor::errors::GovernorError;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::key_extractor::KeyExtractor;
+use tower_governor::GovernorLayer;
 
+use crate::config::RateLimitConfig;
 use crate::database::redemption_code::{RedemptionCode, RedemptionCodeResponse};
 use crate::games::Game;
 use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 
-pub fn routes() -> Router<Arc<Global>> {
-    Router::new().route("/:game/codes", get(get_codes))
+#[derive(Clone)]
+struct CloudflareIp;
+
+impl KeyExtractor for CloudflareIp {
+    type Key = String;
+
+    fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
+        let headers = req.headers();
+
+        let ip = headers
+            .get("CF-Connecting-IP")
+            .or_else(|| headers.get("X-Real-IP"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                headers
+                    .get("X-Forwarded-For")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.split(',').next())
+                    .map(|s| s.trim().to_string())
+            })
+            .or_else(|| {
+                req.extensions()
+                    .get::<ConnectInfo<SocketAddr>>()
+                    .map(|ci| ci.0.ip().to_string())
+            });
+
+        ip.ok_or(GovernorError::UnableToExtractKey)
+    }
+}
+
+pub fn routes(rate_limit: &RateLimitConfig) -> Router<Arc<Global>> {
+    let governor = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(rate_limit.per_second)
+            .burst_size(rate_limit.burst_size)
+            .key_extractor(CloudflareIp)
+            .finish()
+            .unwrap(),
+    );
+
+    Router::new()
+        .route("/:game/codes", get(get_codes))
+        .layer(GovernorLayer { config: governor })
 }
 
 #[derive(serde::Serialize)]

@@ -5,6 +5,10 @@ bind = "0.0.0.0:3939"
 uri = "mongodb://localhost:27017"
 name = "hoyoverse"
 
+[api.rate_limit]
+per_second = 2
+burst_size = 120
+
 [validator]
 enabled = false
 interval_secs = 1800
