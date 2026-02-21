@@ -15,6 +15,10 @@ impl ApiErrorCode {
     pub const UNKNOWN_GAME: Self = Self(1000);
     /// A database query failed unexpectedly.
     pub const DATABASE_ERROR: Self = Self(2000);
+    /// A required feature is not configured.
+    pub const NOT_CONFIGURED: Self = Self(3000);
+    /// An upstream API call failed.
+    pub const UPSTREAM_ERROR: Self = Self(3001);
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

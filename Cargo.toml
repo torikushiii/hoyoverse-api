@@ -15,6 +15,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = { version = "1", features = ["full"] }
 
+md5 = "0.7"
+
 anyhow = "1"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
@@ -38,3 +40,8 @@ path = "scripts/test_parser.rs"
 [[bin]]
 name = "test-redemption"
 path = "scripts/test_redemption.rs"
+
+[[bin]]
+name = "test-calendar"
+path = "scripts/test_calendar.rs"
+

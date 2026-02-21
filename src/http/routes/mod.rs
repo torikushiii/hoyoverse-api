@@ -1,18 +1,31 @@
 use std::sync::Arc;
 
+use axum::body::{Body, Bytes};
 use axum::extract::State;
+use axum::http::Response;
 use axum::routing::get;
 use axum::{Json, Router};
+use hyper::StatusCode;
 
 use crate::games::Game;
 use crate::global::Global;
 
+pub mod calendar;
 pub mod codes;
+
+pub(super) fn json_response(bytes: Bytes) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/json")
+        .body(Body::from(bytes))
+        .unwrap()
+}
 
 pub fn routes(global: &Arc<Global>) -> Router<Arc<Global>> {
     Router::new()
         .route("/", get(root))
         .merge(codes::routes(&global.config.api.rate_limit))
+        .merge(calendar::routes())
 }
 
 #[derive(serde::Serialize)]

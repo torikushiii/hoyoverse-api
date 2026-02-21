@@ -4,3 +4,7 @@ pub const REDEEM_API: &str =
 
 /// Genshin Impact game biz identifier.
 pub const GAME_BIZ: &str = "hk4e_global";
+
+/// Genshin Impact activity calendar API endpoint.
+pub const CALENDAR_API: &str =
+    "https://sg-public-api.hoyolab.com/event/game_record/genshin/api/act_calendar";

@@ -6,7 +6,6 @@ use axum::extract::{ConnectInfo, Path, State};
 use axum::http::Response;
 use axum::routing::get;
 use axum::Router;
-use hyper::StatusCode;
 use tower_governor::errors::GovernorError;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::KeyExtractor;
@@ -17,6 +16,7 @@ use crate::database::redemption_code::{RedemptionCode, RedemptionCodeResponse};
 use crate::games::Game;
 use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
+use crate::http::routes::json_response;
 
 #[derive(Clone)]
 struct CloudflareIp;
@@ -68,14 +68,6 @@ pub fn routes(rate_limit: &RateLimitConfig) -> Router<Arc<Global>> {
 struct CodesResponse {
     active: Vec<RedemptionCodeResponse>,
     inactive: Vec<RedemptionCodeResponse>,
-}
-
-fn json_response(bytes: Bytes) -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("content-type", "application/json")
-        .body(Body::from(bytes))
-        .unwrap()
 }
 
 /// GET /mihoyo/:game/codes
