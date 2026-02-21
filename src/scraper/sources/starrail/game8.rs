@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use regex::Regex;
 use crate::global::Global;
+use regex::Regex;
+use std::sync::Arc;
 
 const GAME8_URL: &str = "https://game8.co/games/Honkai-Star-Rail/archives/410296";
 const EXPIRED_MARKER: &str = "All Expired Star Rail Redeem Codes";

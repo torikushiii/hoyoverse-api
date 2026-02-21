@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use regex::Regex;
 use crate::global::Global;
+use regex::Regex;
+use std::sync::Arc;
 
 const GAME8_URL: &str = "https://game8.co/games/Genshin-Impact/archives/304759";
 const EXPIRED_MARKER: &str = "Expired Genshin Impact Redeem Codes";

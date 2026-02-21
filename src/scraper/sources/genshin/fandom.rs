@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use anyhow::Context as _;
 use crate::global::Global;
+use anyhow::Context as _;
+use std::sync::Arc;
 const FANDOM_API: &str = "https://genshin-impact.fandom.com/api.php";
 
 #[derive(Debug)]

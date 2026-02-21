@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use regex::Regex;
 use crate::global::Global;
+use regex::Regex;
+use std::sync::Arc;
 
 const TOT_WIKI_URL: &str = "https://tot.wiki/wiki/Redeem_Code";
 

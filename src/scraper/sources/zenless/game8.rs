@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use regex::Regex;
 use crate::global::Global;
+use regex::Regex;
+use std::sync::Arc;
 
 const GAME8_URL: &str = "https://game8.co/games/Zenless-Zone-Zero/archives/435683";
 const EXPIRED_MARKER: &str = "All Expired ZZZ Codes";
