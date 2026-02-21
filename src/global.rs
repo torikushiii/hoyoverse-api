@@ -49,6 +49,7 @@ impl ResponseCache {
 
 pub struct Global {
     pub config: Config,
+    #[allow(dead_code)]
     pub mongo: mongodb::Client,
     pub db: mongodb::Database,
     pub http_client: reqwest::Client,

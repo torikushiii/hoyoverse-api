@@ -48,6 +48,7 @@ impl RedemptionCode {
         Ok(codes)
     }
 
+    #[allow(dead_code)]
     #[tracing::instrument(skip(db))]
     pub async fn exists(db: &mongodb::Database, game: Game, code: &str) -> anyhow::Result<bool> {
         let collection = Self::collection(db, game);

@@ -40,6 +40,7 @@ impl ApiError {
         }
     }
 
+    #[allow(dead_code)]
     pub fn bad_request(error_code: ApiErrorCode, error: impl Into<Cow<'static, str>>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, error_code, error)
     }
