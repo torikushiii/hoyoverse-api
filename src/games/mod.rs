@@ -61,7 +61,7 @@ impl Game {
             Self::Starrail => Some(starrail::REDEEM_API),
             Self::Zenless => Some(zenless::REDEEM_API),
             Self::Themis => Some(themis::REDEEM_API),
-            _ => None, // TODO: add other games
+            _ => None,
         }
     }
 
@@ -71,7 +71,7 @@ impl Game {
             Self::Starrail => Some(starrail::GAME_BIZ),
             Self::Zenless => Some(zenless::GAME_BIZ),
             Self::Themis => Some(themis::GAME_BIZ),
-            _ => None, // TODO: add other games
+            _ => None,
         }
     }
 }

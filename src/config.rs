@@ -29,6 +29,10 @@ pub struct ApiConfig {
 
     /// Rate limiting configuration
     pub rate_limit: RateLimitConfig,
+
+    /// Response cache TTL in seconds
+    #[default(300)]
+    pub cache_ttl_secs: u64,
 }
 
 #[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]

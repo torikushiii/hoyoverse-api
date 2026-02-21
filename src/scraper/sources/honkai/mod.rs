@@ -55,5 +55,12 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
 
     tracing::info!(new = new_count, total, "honkai scrape complete");
 
+    if new_count > 0 {
+        global
+            .response_cache
+            .remove(&format!("/mihoyo/{}/codes", Game::Honkai.slug()))
+            .await;
+    }
+
     Ok(())
 }

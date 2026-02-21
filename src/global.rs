@@ -1,11 +1,51 @@
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
+use axum::body::Bytes;
 use mongodb::bson::doc;
 use mongodb::IndexModel;
+use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::games::Game;
+
+pub struct ResponseCache {
+    store: Arc<RwLock<HashMap<String, (Bytes, Instant)>>>,
+    ttl: Duration,
+}
+
+impl ResponseCache {
+    pub fn new(ttl: Duration) -> Self {
+        Self {
+            store: Arc::new(RwLock::new(HashMap::new())),
+            ttl,
+        }
+    }
+
+    pub async fn get(&self, key: &str) -> Option<Bytes> {
+        let store = self.store.read().await;
+        store.get(key).and_then(|(bytes, cached_at)| {
+            if cached_at.elapsed() < self.ttl {
+                Some(bytes.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub async fn insert(&self, key: String, bytes: Bytes) {
+        self.store
+            .write()
+            .await
+            .insert(key, (bytes, Instant::now()));
+    }
+
+    pub async fn remove(&self, key: &str) {
+        self.store.write().await.remove(key);
+    }
+}
 
 pub struct Global {
     pub config: Config,
@@ -13,6 +53,7 @@ pub struct Global {
     pub db: mongodb::Database,
     pub http_client: reqwest::Client,
     pub started_at: std::time::Instant,
+    pub response_cache: ResponseCache,
 }
 
 impl Global {
@@ -32,12 +73,15 @@ impl Global {
             .build()
             .context("http client")?;
 
+        let response_cache = ResponseCache::new(Duration::from_secs(config.api.cache_ttl_secs));
+
         Ok(Arc::new(Self {
             config,
             mongo,
             db,
             http_client,
             started_at: std::time::Instant::now(),
+            response_cache,
         }))
     }
 

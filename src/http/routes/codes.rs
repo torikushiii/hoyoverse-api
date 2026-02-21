@@ -1,9 +1,12 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::body::{Body, Bytes};
 use axum::extract::{ConnectInfo, Path, State};
+use axum::http::Response;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::Router;
+use hyper::StatusCode;
 use tower_governor::errors::GovernorError;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::KeyExtractor;
@@ -67,6 +70,14 @@ struct CodesResponse {
     inactive: Vec<RedemptionCodeResponse>,
 }
 
+fn json_response(bytes: Bytes) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/json")
+        .body(Body::from(bytes))
+        .unwrap()
+}
+
 /// GET /mihoyo/:game/codes
 ///
 /// Returns all redemption codes for the given game, split by active/inactive.
@@ -74,9 +85,15 @@ struct CodesResponse {
 async fn get_codes(
     State(global): State<Arc<Global>>,
     Path(game_slug): Path<String>,
-) -> Result<Json<CodesResponse>, ApiError> {
+) -> Result<Response<Body>, ApiError> {
     let game = Game::from_slug(&game_slug)
         .ok_or_else(|| ApiError::not_found(ApiErrorCode::UNKNOWN_GAME, "unknown game"))?;
+
+    let cache_key = format!("/mihoyo/{game_slug}/codes");
+
+    if let Some(bytes) = global.response_cache.get(&cache_key).await {
+        return Ok(json_response(bytes));
+    }
 
     let all_codes = RedemptionCode::find_all(&global.db, game)
         .await
@@ -86,9 +103,14 @@ async fn get_codes(
         })?;
 
     let (active, inactive): (Vec<_>, Vec<_>) = all_codes.into_iter().partition(|c| c.active);
-
-    Ok(Json(CodesResponse {
+    let response = CodesResponse {
         active: active.into_iter().map(Into::into).collect(),
         inactive: inactive.into_iter().map(Into::into).collect(),
-    }))
+    };
+
+    let bytes =
+        Bytes::from(serde_json::to_vec(&response).expect("CodesResponse is always serializable"));
+    global.response_cache.insert(cache_key, bytes.clone()).await;
+
+    Ok(json_response(bytes))
 }
