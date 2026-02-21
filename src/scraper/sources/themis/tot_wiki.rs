@@ -1,14 +1,8 @@
 use std::sync::Arc;
-
-use mongodb::bson::doc;
 use regex::Regex;
-
-use crate::database::redemption_code::RedemptionCode;
-use crate::games::Game;
 use crate::global::Global;
 
 const TOT_WIKI_URL: &str = "https://tot.wiki/wiki/Redeem_Code";
-const SOURCE: &str = "tot_wiki";
 
 #[derive(Debug)]
 pub struct ParsedCode {
@@ -106,43 +100,4 @@ fn parse_rewards(text: &str) -> Vec<String> {
             }
         })
         .collect()
-}
-
-#[tracing::instrument(skip(global))]
-pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<usize> {
-    let scraped = scrape(global).await?;
-    let collection = RedemptionCode::collection(&global.db, Game::Themis);
-
-    let mut new_count = 0;
-
-    for parsed in &scraped {
-        let exists = collection
-            .count_documents(doc! { "code": &parsed.code })
-            .await?
-            > 0;
-
-        if exists {
-            continue;
-        }
-
-        let doc = RedemptionCode {
-            code: parsed.code.clone(),
-            active: true,
-            date: bson::DateTime::now(),
-            rewards: parsed.rewards.clone(),
-            source: SOURCE.to_string(),
-        };
-
-        collection.insert_one(doc).await?;
-        tracing::info!(code = parsed.code, "new code discovered");
-        new_count += 1;
-    }
-
-    tracing::info!(
-        new = new_count,
-        total = scraped.len(),
-        "tot_wiki scrape complete"
-    );
-
-    Ok(new_count)
 }

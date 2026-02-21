@@ -1,16 +1,9 @@
 use std::sync::Arc;
-
-use mongodb::bson::doc;
 use regex::Regex;
-
-use crate::database::redemption_code::RedemptionCode;
-use crate::games::Game;
 use crate::global::Global;
-use crate::validator::hoyoverse_api;
 
 const GAME8_URL: &str = "https://game8.co/games/Genshin-Impact/archives/304759";
 const EXPIRED_MARKER: &str = "Expired Genshin Impact Redeem Codes";
-const SOURCE: &str = "game8";
 
 #[derive(Debug)]
 pub struct ParsedCode {
@@ -85,86 +78,4 @@ pub fn parse_html(html: &str) -> Vec<ParsedCode> {
     results.dedup_by(|a, b| a.code == b.code);
 
     results
-}
-
-#[tracing::instrument(skip(global))]
-pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<usize> {
-    let scraped = scrape(global).await?;
-    let collection = RedemptionCode::collection(&global.db, Game::Genshin);
-
-    // Phase 1: collect new codes not yet in the database
-    let mut new_codes: Vec<(String, Vec<String>)> = Vec::new();
-
-    for parsed in &scraped {
-        let exists = collection
-            .count_documents(doc! { "code": &parsed.code })
-            .await?
-            > 0;
-
-        if !exists {
-            new_codes.push((parsed.code.clone(), parsed.rewards.clone()));
-        }
-    }
-
-    if new_codes.is_empty() {
-        tracing::info!(total = scraped.len(), "game8 scrape complete, no new codes");
-        return Ok(0);
-    }
-
-    // Phase 2: validate new codes if configured
-    let validation_enabled = global
-        .config
-        .validator
-        .game_config(Game::Genshin)
-        .is_some_and(|c| c.enabled)
-        && Game::Genshin.redeem_endpoint().is_some();
-
-    let mut new_count = 0;
-
-    for (code, rewards) in &new_codes {
-        if validation_enabled {
-            let valid = loop {
-                match hoyoverse_api::validate_code(global, Game::Genshin, code).await {
-                    Ok(resp) if resp.is_cooldown() => {
-                        tracing::warn!(code, "hit cooldown, retrying in 6s");
-                        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-                        continue;
-                    }
-                    Ok(resp) => break resp.is_code_valid(),
-                    Err(e) => {
-                        tracing::warn!(code, error = %e, "validation request failed, inserting anyway");
-                        break true;
-                    }
-                }
-            };
-
-            if !valid {
-                tracing::info!(code, "skipping invalid code");
-                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-                continue;
-            }
-
-            tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-        }
-
-        let doc = RedemptionCode {
-            code: code.clone(),
-            active: true,
-            date: bson::DateTime::now(),
-            rewards: rewards.clone(),
-            source: SOURCE.to_string(),
-        };
-
-        collection.insert_one(doc).await?;
-        tracing::info!(code, "new code discovered");
-        new_count += 1;
-    }
-
-    tracing::info!(
-        new = new_count,
-        total = scraped.len(),
-        "game8 scrape complete"
-    );
-
-    Ok(new_count)
 }

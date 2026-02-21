@@ -18,19 +18,22 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
     tracing::info!(interval_secs, "starting scraper");
 
     loop {
-        if let Err(e) = sources::genshin::scrape_and_store(&global).await {
+        let (r1, r2, r3, r4) = tokio::join!(
+            sources::genshin::scrape_and_store(&global),
+            sources::starrail::scrape_and_store(&global),
+            sources::zenless::scrape_and_store(&global),
+            sources::themis::scrape_and_store(&global),
+        );
+        if let Err(e) = r1 {
             tracing::error!(error = %e, "genshin scraper failed");
         }
-
-        if let Err(e) = sources::starrail::scrape_and_store(&global).await {
+        if let Err(e) = r2 {
             tracing::error!(error = %e, "starrail scraper failed");
         }
-
-        if let Err(e) = sources::zenless::scrape_and_store(&global).await {
+        if let Err(e) = r3 {
             tracing::error!(error = %e, "zenless scraper failed");
         }
-
-        if let Err(e) = sources::themis::scrape_and_store(&global).await {
+        if let Err(e) = r4 {
             tracing::error!(error = %e, "themis scraper failed");
         }
 
