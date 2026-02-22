@@ -8,6 +8,7 @@ use mongodb::bson::doc;
 use crate::database::redemption_code::RedemptionCode;
 use crate::games::Game;
 use crate::global::Global;
+use crate::notifier::discord;
 use crate::validator::hoyoverse_api;
 
 pub mod fandom;
@@ -77,6 +78,7 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
         && Game::Zenless.redeem_endpoint().is_some();
 
     let mut new_count = 0;
+    let mut new_valid_codes: Vec<(String, Vec<String>, String)> = Vec::new();
 
     for (code, rewards, source) in &new_codes {
         if validation_enabled {
@@ -123,12 +125,14 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
 
         collection.insert_one(doc).await?;
         tracing::info!(code, source, "new code discovered");
+        new_valid_codes.push((code.clone(), rewards.clone(), source.to_string()));
         new_count += 1;
     }
 
     tracing::info!(new = new_count, total, "zenless scrape complete");
 
     if new_count > 0 {
+        discord::notify_new_codes(global, Game::Zenless, &new_valid_codes).await;
         global
             .response_cache
             .remove(&format!("/mihoyo/{}/codes", Game::Zenless.slug()))

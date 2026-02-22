@@ -45,3 +45,7 @@ path = "scripts/test_redemption.rs"
 name = "test-calendar"
 path = "scripts/test_calendar.rs"
 
+[[bin]]
+name = "test-notifier"
+path = "scripts/test_notifier.rs"
+

@@ -75,6 +75,16 @@ impl Game {
         }
     }
 
+    pub fn embed_color(&self) -> u32 {
+        match self {
+            Self::Genshin => 0xF4D442,
+            Self::Starrail => 0x9C59D1,
+            Self::Zenless => 0xF4A614,
+            Self::Honkai => 0xD72B23,
+            Self::Themis => 0xC44FA4,
+        }
+    }
+
     pub fn game_biz(&self) -> Option<&'static str> {
         match self {
             Self::Genshin => Some(genshin::GAME_BIZ),

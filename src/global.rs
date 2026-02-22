@@ -57,6 +57,7 @@ pub struct Global {
     pub response_cache: ResponseCache,
     pub fandom_image_cache: ResponseCache,
     pub news_cache: ResponseCache,
+    pub discord_webhook: Option<String>,
 }
 
 impl Global {
@@ -80,6 +81,12 @@ impl Global {
         let fandom_image_cache = ResponseCache::new(Duration::from_secs(24 * 3600));
         let news_cache = ResponseCache::new(Duration::from_secs(15 * 60));
 
+        let discord_webhook = if config.notifications.discord_webhook.is_empty() {
+            None
+        } else {
+            Some(config.notifications.discord_webhook.clone())
+        };
+
         Ok(Arc::new(Self {
             config,
             mongo,
@@ -89,6 +96,7 @@ impl Global {
             response_cache,
             fandom_image_cache,
             news_cache,
+            discord_webhook,
         }))
     }
 

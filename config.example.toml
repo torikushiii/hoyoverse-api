@@ -40,3 +40,6 @@ region = "os_usa"
 [scraper]
 enabled = false
 interval_secs = 300
+
+[notifications]
+discord_webhook = ""

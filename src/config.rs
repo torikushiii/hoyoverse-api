@@ -15,6 +15,9 @@ pub struct Config {
     /// Scraper configuration
     pub scraper: ScraperConfig,
 
+    /// Notifications configuration
+    pub notifications: NotificationsConfig,
+
     /// Log level
     #[default(std::env::var("RUST_LOG").unwrap_or("info".into()))]
     pub level: String,
@@ -125,6 +128,14 @@ pub struct ScraperConfig {
     /// Scrape interval in seconds
     #[default(300)]
     pub interval_secs: u64,
+}
+
+#[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct NotificationsConfig {
+    /// Discord webhook URL for new code notifications (empty = disabled)
+    #[default("".into())]
+    pub discord_webhook: String,
 }
 
 impl Config {

@@ -7,6 +7,7 @@ mod database;
 mod games;
 mod global;
 mod http;
+mod notifier;
 mod scraper;
 mod util;
 mod validator;

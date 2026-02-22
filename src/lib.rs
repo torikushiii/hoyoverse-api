@@ -3,6 +3,7 @@ pub mod database;
 pub mod games;
 pub mod global;
 pub mod http;
+pub mod notifier;
 pub mod scraper;
 pub mod util;
 pub mod validator;

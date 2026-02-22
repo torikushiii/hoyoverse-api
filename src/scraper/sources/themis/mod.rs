@@ -7,6 +7,7 @@ use mongodb::bson::doc;
 use crate::database::redemption_code::RedemptionCode;
 use crate::games::Game;
 use crate::global::Global;
+use crate::notifier::discord;
 
 pub mod tot_wiki;
 
@@ -38,6 +39,7 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
         .collect();
 
     let mut new_count = 0;
+    let mut new_valid_codes: Vec<(String, Vec<String>, String)> = Vec::new();
 
     for parsed in scraped.iter().filter(|p| !existing.contains(&p.code)) {
         let doc = RedemptionCode {
@@ -50,12 +52,14 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
 
         collection.insert_one(doc).await?;
         tracing::info!(code = parsed.code, "new code discovered");
+        new_valid_codes.push((parsed.code.clone(), parsed.rewards.clone(), "tot_wiki".to_string()));
         new_count += 1;
     }
 
     tracing::info!(new = new_count, total, "themis scrape complete");
 
     if new_count > 0 {
+        discord::notify_new_codes(global, Game::Themis, &new_valid_codes).await;
         global
             .response_cache
             .remove(&format!("/mihoyo/{}/codes", Game::Themis.slug()))
