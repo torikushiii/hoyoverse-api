@@ -73,6 +73,7 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
                             "marking code as inactive"
                         );
                         RedemptionCode::set_active(&global.db, game, &code.code, false).await?;
+                        metrics::counter!("validator_codes_deactivated_total", "game" => game.slug()).increment(1);
                     } else if resp.is_cooldown() {
                         tracing::warn!(
                             game = game.display_name(),

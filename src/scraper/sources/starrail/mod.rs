@@ -108,6 +108,7 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
                         source: source.to_string(),
                     })
                     .await?;
+                metrics::counter!("scraper_codes_invalid_total", "game" => Game::Starrail.slug()).increment(1);
                 tokio::time::sleep(std::time::Duration::from_secs(6)).await;
                 continue;
             }
@@ -125,6 +126,7 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
 
         collection.insert_one(doc).await?;
         tracing::info!(code, source, "new code discovered");
+        metrics::counter!("scraper_codes_discovered_total", "game" => Game::Starrail.slug()).increment(1);
         new_valid_codes.push((code.clone(), rewards.clone(), source.to_string()));
         new_count += 1;
     }

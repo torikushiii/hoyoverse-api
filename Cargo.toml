@@ -28,6 +28,11 @@ bson = { version = "2.11", features = ["chrono-0_4"] }
 
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
+axum-prometheus = "0.7"
+metrics = "0.23"
+metrics-prometheus = "0.7"
+prometheus = "0.13"
+
 tower-http = { version = "0.6", features = ["trace", "cors", "compression-br", "compression-gzip", "compression-zstd"] }
 axum = { version = "0.7", features = ["macros"] }
 tower = "0.5"

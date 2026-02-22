@@ -14,6 +14,8 @@ mod validator;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    metrics_prometheus::install();
+
     let config = config::Config::load()?;
 
     tracing_subscriber::fmt()

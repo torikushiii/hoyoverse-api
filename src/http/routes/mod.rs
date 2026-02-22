@@ -28,6 +28,7 @@ pub fn routes(global: &Arc<Global>) -> Router<Arc<Global>> {
         .merge(codes::routes(&global.config.api.rate_limit))
         .merge(calendar::routes())
         .merge(news::routes())
+        .route_layer(axum::middleware::from_fn(super::track_client))
 }
 
 #[derive(serde::Serialize)]
