@@ -65,6 +65,16 @@ impl Game {
         }
     }
 
+    pub fn hoyolab_gid(&self) -> u32 {
+        match self {
+            Self::Honkai => 1,
+            Self::Genshin => 2,
+            Self::Themis => 4,
+            Self::Starrail => 6,
+            Self::Zenless => 8,
+        }
+    }
+
     pub fn game_biz(&self) -> Option<&'static str> {
         match self {
             Self::Genshin => Some(genshin::GAME_BIZ),

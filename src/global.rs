@@ -56,6 +56,7 @@ pub struct Global {
     pub started_at: std::time::Instant,
     pub response_cache: ResponseCache,
     pub fandom_image_cache: ResponseCache,
+    pub news_cache: ResponseCache,
 }
 
 impl Global {
@@ -77,6 +78,7 @@ impl Global {
 
         let response_cache = ResponseCache::new(Duration::from_secs(config.api.cache_ttl_secs));
         let fandom_image_cache = ResponseCache::new(Duration::from_secs(24 * 3600));
+        let news_cache = ResponseCache::new(Duration::from_secs(15 * 60));
 
         Ok(Arc::new(Self {
             config,
@@ -86,6 +88,7 @@ impl Global {
             started_at: std::time::Instant::now(),
             response_cache,
             fandom_image_cache,
+            news_cache,
         }))
     }
 

@@ -12,6 +12,7 @@ use crate::global::Global;
 
 pub mod calendar;
 pub mod codes;
+pub mod news;
 
 pub(super) fn json_response(bytes: Bytes) -> Response<Body> {
     Response::builder()
@@ -26,6 +27,7 @@ pub fn routes(global: &Arc<Global>) -> Router<Arc<Global>> {
         .route("/", get(root))
         .merge(codes::routes(&global.config.api.rate_limit))
         .merge(calendar::routes())
+        .merge(news::routes())
 }
 
 #[derive(serde::Serialize)]
