@@ -55,6 +55,7 @@ pub struct Global {
     pub http_client: reqwest::Client,
     pub started_at: std::time::Instant,
     pub response_cache: ResponseCache,
+    pub fandom_image_cache: ResponseCache,
 }
 
 impl Global {
@@ -75,6 +76,7 @@ impl Global {
             .context("http client")?;
 
         let response_cache = ResponseCache::new(Duration::from_secs(config.api.cache_ttl_secs));
+        let fandom_image_cache = ResponseCache::new(Duration::from_secs(24 * 3600));
 
         Ok(Arc::new(Self {
             config,
@@ -83,6 +85,7 @@ impl Global {
             http_client,
             started_at: std::time::Instant::now(),
             response_cache,
+            fandom_image_cache,
         }))
     }
 
