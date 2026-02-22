@@ -5,7 +5,11 @@ use serde_json::json;
 use crate::games::Game;
 use crate::global::Global;
 
-pub async fn notify_new_codes(global: &Arc<Global>, game: Game, codes: &[(String, Vec<String>, String)]) {
+pub async fn notify_new_codes(
+    global: &Arc<Global>,
+    game: Game,
+    codes: &[(String, Vec<String>, String)],
+) {
     let Some(webhook_url) = &global.discord_webhook else {
         return;
     };
@@ -35,9 +39,19 @@ pub async fn notify_new_codes(global: &Arc<Global>, game: Game, codes: &[(String
         }]
     });
 
-    match global.http_client.post(webhook_url).json(&payload).send().await {
+    match global
+        .http_client
+        .post(webhook_url)
+        .json(&payload)
+        .send()
+        .await
+    {
         Ok(resp) if resp.status().is_success() => {
-            tracing::info!(game = game.slug(), count = codes.len(), "discord notification sent");
+            tracing::info!(
+                game = game.slug(),
+                count = codes.len(),
+                "discord notification sent"
+            );
         }
         Ok(resp) => {
             tracing::warn!(game = game.slug(), status = %resp.status(), "discord notification failed");

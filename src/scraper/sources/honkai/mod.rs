@@ -52,8 +52,13 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
 
         collection.insert_one(doc).await?;
         tracing::info!(code = parsed.code, "new code discovered");
-        metrics::counter!("scraper_codes_discovered_total", "game" => Game::Honkai.slug()).increment(1);
-        new_valid_codes.push((parsed.code.clone(), parsed.rewards.clone(), "fandom".to_string()));
+        metrics::counter!("scraper_codes_discovered_total", "game" => Game::Honkai.slug())
+            .increment(1);
+        new_valid_codes.push((
+            parsed.code.clone(),
+            parsed.rewards.clone(),
+            "fandom".to_string(),
+        ));
         new_count += 1;
     }
 
