@@ -10,8 +10,14 @@ use crate::games::Game;
 use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
+use serde::Deserialize;
 
 const PAGE_SIZE: u32 = 15;
+
+fn deserialize_string_to_i64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    let s = String::deserialize(d)?;
+    s.parse::<i64>().map_err(serde::de::Error::custom)
+}
 
 const EVENTS_API: &str =
     "https://bbs-api-os.hoyolab.com/community/community_contribution/wapi/event/list";
@@ -41,6 +47,7 @@ struct HylEvent {
     id: String,
     name: String,
     desc: String,
+    #[serde(deserialize_with = "deserialize_string_to_i64")]
     create_at: i64,
     banner_url: String,
     web_path: String,
