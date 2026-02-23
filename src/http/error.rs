@@ -13,6 +13,8 @@ impl ApiErrorCode {
     pub const ROUTE_NOT_FOUND: Self = Self(404);
     /// The requested game slug does not exist.
     pub const UNKNOWN_GAME: Self = Self(1000);
+    /// The requested language is not supported.
+    pub const INVALID_LANGUAGE: Self = Self(1001);
     /// A database query failed unexpectedly.
     pub const DATABASE_ERROR: Self = Self(2000);
     /// A required feature is not configured.
