@@ -170,6 +170,32 @@ Returns the latest HoYoLab community posts for the specified game, categorized b
 |-----------|------|-------------|
 | `game` | string | Game slug (see supported games table) |
 
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `lang` | string | `en-us` | Language for news content |
+
+**Supported languages:**
+
+| Code | Full locale |
+|------|-------------|
+| `en` / `en-us` | English |
+| `zh` / `zh-cn` | Chinese (Simplified) |
+| `zh-tw` | Chinese (Traditional) |
+| `de` / `de-de` | German |
+| `es` / `es-es` | Spanish |
+| `fr` / `fr-fr` | French |
+| `id` / `id-id` | Indonesian |
+| `it` / `it-it` | Italian |
+| `ja` / `ja-jp` | Japanese |
+| `ko` / `ko-kr` | Korean |
+| `pt` / `pt-pt` | Portuguese |
+| `ru` / `ru-ru` | Russian |
+| `th` / `th-th` | Thai |
+| `tr` / `tr-tr` | Turkish |
+| `vi` / `vi-vn` | Vietnamese |
+
 **Response:**
 
 ```json
@@ -208,6 +234,7 @@ All errors follow a consistent format:
 |------|------|-------------|
 | 404 | ROUTE_NOT_FOUND | The requested endpoint does not exist |
 | 1000 | UNKNOWN_GAME | The game slug is not recognized |
+| 1001 | INVALID_LANGUAGE | The `lang` parameter is not a supported language |
 | 2000 | DATABASE_ERROR | A database operation failed |
 | 3000 | NOT_CONFIGURED | The requested feature is not configured on the server |
 | 3001 | UPSTREAM_ERROR | An upstream HoYoverse/HoYoLab API call failed |
