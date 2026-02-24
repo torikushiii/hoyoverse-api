@@ -312,104 +312,101 @@ pub(super) async fn get_starrail_calendar(
 ) -> Result<Response<Body>, ApiError> {
     const CACHE_KEY: &str = "/mihoyo/starrail/calendar";
 
-    if let Some(bytes) = global.response_cache.get(CACHE_KEY).await {
-        return Ok(json_response(bytes));
-    }
+    let bytes = global
+        .response_cache
+        .get_or_try_insert(CACHE_KEY.to_string(), async {
+            let game_config = global
+                .config
+                .validator
+                .game_config(crate::games::Game::Starrail)
+                .filter(|c| !c.cookie.is_empty() && !c.uid.is_empty())
+                .ok_or_else(|| {
+                    ApiError::internal_server_error(
+                        ApiErrorCode::NOT_CONFIGURED,
+                        "starrail calendar credentials not configured",
+                    )
+                })?;
 
-    let game_config = global
-        .config
-        .validator
-        .game_config(crate::games::Game::Starrail)
-        .filter(|c| !c.cookie.is_empty() && !c.uid.is_empty())
-        .ok_or_else(|| {
-            ApiError::internal_server_error(
-                ApiErrorCode::NOT_CONFIGURED,
-                "starrail calendar credentials not configured",
-            )
-        })?;
+            let ds = generate_ds();
 
-    let ds = generate_ds();
+            let resp = global
+                .http_client
+                .get(starrail::CALENDAR_API)
+                .query(&[
+                    ("server", &game_config.region),
+                    ("role_id", &game_config.uid),
+                ])
+                .header("Cookie", &game_config.cookie)
+                .header("DS", ds)
+                .header("x-rpc-app_version", "1.5.0")
+                .header("x-rpc-client_type", "5")
+                .header("x-rpc-language", "en-us")
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "failed to fetch starrail calendar");
+                    ApiError::internal_server_error(
+                        ApiErrorCode::UPSTREAM_ERROR,
+                        "failed to fetch calendar",
+                    )
+                })?;
 
-    let resp = global
-        .http_client
-        .get(starrail::CALENDAR_API)
-        .query(&[
-            ("server", &game_config.region),
-            ("role_id", &game_config.uid),
-        ])
-        .header("Cookie", &game_config.cookie)
-        .header("DS", ds)
-        .header("x-rpc-app_version", "1.5.0")
-        .header("x-rpc-client_type", "5")
-        .header("x-rpc-language", "en-us")
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to fetch starrail calendar");
-            ApiError::internal_server_error(
-                ApiErrorCode::UPSTREAM_ERROR,
-                "failed to fetch calendar",
-            )
-        })?;
+            let hyv_resp: HyvResponse = resp.json().await.map_err(|e| {
+                tracing::error!(error = %e, "failed to parse starrail calendar response");
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "failed to parse calendar response",
+                )
+            })?;
 
-    let hyv_resp: HyvResponse = resp.json().await.map_err(|e| {
-        tracing::error!(error = %e, "failed to parse starrail calendar response");
-        ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "failed to parse calendar response",
-        )
-    })?;
+            if hyv_resp.retcode != 0 {
+                tracing::error!(retcode = hyv_resp.retcode, message = %hyv_resp.message, "hoyoverse starrail calendar API error");
+                return Err(ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "calendar API returned an error",
+                ));
+            }
 
-    if hyv_resp.retcode != 0 {
-        tracing::error!(retcode = hyv_resp.retcode, message = %hyv_resp.message, "hoyoverse starrail calendar API error");
-        return Err(ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "calendar API returned an error",
-        ));
-    }
+            let data = hyv_resp.data.ok_or_else(|| {
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "calendar API returned no data",
+                )
+            })?;
 
-    let data = hyv_resp.data.ok_or_else(|| {
-        ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "calendar API returned no data",
-        )
-    })?;
-
-    const FANDOM_CACHE_KEY: &str = "/fandom/starrail/event-images";
-    let image_map: HashMap<String, String> =
-        if let Some(bytes) = global.fandom_image_cache.get(FANDOM_CACHE_KEY).await {
-            serde_json::from_slice(&bytes).unwrap_or_default()
-        } else {
+            const FANDOM_CACHE_KEY: &str = "/fandom/starrail/event-images";
             let names: Vec<String> = data
                 .act_list
                 .iter()
                 .filter(|a| a.time_info.start_ts != "0" && a.time_info.end_ts != "0")
                 .map(|a| a.name.clone())
                 .collect();
-            let map = fetch_fandom_images(
-                &global.http_client,
-                "https://honkai-star-rail.fandom.com/api.php",
-                "File:Event ",
-                ".png",
-                &names,
-            )
-            .await;
-            let bytes = Bytes::from(serde_json::to_vec(&map).unwrap_or_default());
-            global
-                .fandom_image_cache
-                .insert(FANDOM_CACHE_KEY.to_string(), bytes)
-                .await;
-            map
-        };
 
-    let calendar = transform_calendar(data, &image_map);
-    let bytes = Bytes::from(
-        serde_json::to_vec(&calendar).expect("CalendarResponse is always serializable"),
-    );
-    global
-        .response_cache
-        .insert(CACHE_KEY.to_string(), bytes.clone())
-        .await;
+            let fandom_bytes = global
+                .fandom_image_cache
+                .get_or_insert(FANDOM_CACHE_KEY.to_string(), async {
+                    let map = fetch_fandom_images(
+                        &global.http_client,
+                        "https://honkai-star-rail.fandom.com/api.php",
+                        "File:Event ",
+                        ".png",
+                        &names,
+                    )
+                    .await;
+                    Bytes::from(serde_json::to_vec(&map).unwrap_or_default())
+                })
+                .await;
+
+            let image_map: HashMap<String, String> =
+                serde_json::from_slice(&fandom_bytes).unwrap_or_default();
+
+            let calendar = transform_calendar(data, &image_map);
+            Ok(Bytes::from(
+                serde_json::to_vec(&calendar)
+                    .expect("CalendarResponse is always serializable"),
+            ))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }

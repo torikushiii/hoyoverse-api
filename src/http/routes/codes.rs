@@ -83,26 +83,31 @@ async fn get_codes(
 
     let cache_key = format!("/mihoyo/{game_slug}/codes");
 
-    if let Some(bytes) = global.response_cache.get(&cache_key).await {
-        return Ok(json_response(bytes));
-    }
+    let bytes = global
+        .response_cache
+        .get_or_try_insert(cache_key, async {
+            let all_codes = RedemptionCode::find_all(&global.db, game)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "failed to query codes");
+                    ApiError::internal_server_error(
+                        ApiErrorCode::DATABASE_ERROR,
+                        "failed to query codes",
+                    )
+                })?;
 
-    let all_codes = RedemptionCode::find_all(&global.db, game)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to query codes");
-            ApiError::internal_server_error(ApiErrorCode::DATABASE_ERROR, "failed to query codes")
-        })?;
+            let (active, inactive): (Vec<_>, Vec<_>) =
+                all_codes.into_iter().partition(|c| c.active);
+            let response = CodesResponse {
+                active: active.into_iter().map(Into::into).collect(),
+                inactive: inactive.into_iter().map(Into::into).collect(),
+            };
 
-    let (active, inactive): (Vec<_>, Vec<_>) = all_codes.into_iter().partition(|c| c.active);
-    let response = CodesResponse {
-        active: active.into_iter().map(Into::into).collect(),
-        inactive: inactive.into_iter().map(Into::into).collect(),
-    };
-
-    let bytes =
-        Bytes::from(serde_json::to_vec(&response).expect("CodesResponse is always serializable"));
-    global.response_cache.insert(cache_key, bytes.clone()).await;
+            Ok(Bytes::from(
+                serde_json::to_vec(&response).expect("CodesResponse is always serializable"),
+            ))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }

@@ -286,76 +286,71 @@ pub(super) async fn get_genshin_calendar(
 ) -> Result<Response<Body>, ApiError> {
     const CACHE_KEY: &str = "/mihoyo/genshin/calendar";
 
-    if let Some(bytes) = global.response_cache.get(CACHE_KEY).await {
-        return Ok(json_response(bytes));
-    }
+    let bytes = global
+        .response_cache
+        .get_or_try_insert(CACHE_KEY.to_string(), async {
+            let game_config = global
+                .config
+                .validator
+                .game_config(crate::games::Game::Genshin)
+                .filter(|c| !c.cookie.is_empty() && !c.uid.is_empty())
+                .ok_or_else(|| {
+                    ApiError::internal_server_error(
+                        ApiErrorCode::NOT_CONFIGURED,
+                        "genshin calendar credentials not configured",
+                    )
+                })?;
 
-    let game_config = global
-        .config
-        .validator
-        .game_config(crate::games::Game::Genshin)
-        .filter(|c| !c.cookie.is_empty() && !c.uid.is_empty())
-        .ok_or_else(|| {
-            ApiError::internal_server_error(
-                ApiErrorCode::NOT_CONFIGURED,
-                "genshin calendar credentials not configured",
-            )
-        })?;
+            let body = serde_json::json!({
+                "role_id": game_config.uid,
+                "server": game_config.region,
+            });
+            let body_str = body.to_string();
+            let ds = generate_ds(&body_str);
 
-    let body = serde_json::json!({
-        "role_id": game_config.uid,
-        "server": game_config.region,
-    });
-    let body_str = body.to_string();
-    let ds = generate_ds(&body_str);
+            let resp = global
+                .http_client
+                .post(genshin::CALENDAR_API)
+                .header("Cookie", &game_config.cookie)
+                .header("DS", ds)
+                .header("x-rpc-app_version", "1.5.0")
+                .header("x-rpc-client_type", "5")
+                .header("x-rpc-language", "en-us")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "failed to fetch genshin calendar");
+                    ApiError::internal_server_error(
+                        ApiErrorCode::UPSTREAM_ERROR,
+                        "failed to fetch calendar",
+                    )
+                })?;
 
-    let resp = global
-        .http_client
-        .post(genshin::CALENDAR_API)
-        .header("Cookie", &game_config.cookie)
-        .header("DS", ds)
-        .header("x-rpc-app_version", "1.5.0")
-        .header("x-rpc-client_type", "5")
-        .header("x-rpc-language", "en-us")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to fetch genshin calendar");
-            ApiError::internal_server_error(
-                ApiErrorCode::UPSTREAM_ERROR,
-                "failed to fetch calendar",
-            )
-        })?;
+            let hyv_resp: HyvResponse = resp.json().await.map_err(|e| {
+                tracing::error!(error = %e, "failed to parse genshin calendar response");
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "failed to parse calendar response",
+                )
+            })?;
 
-    let hyv_resp: HyvResponse = resp.json().await.map_err(|e| {
-        tracing::error!(error = %e, "failed to parse genshin calendar response");
-        ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "failed to parse calendar response",
-        )
-    })?;
+            if hyv_resp.retcode != 0 {
+                tracing::error!(retcode = hyv_resp.retcode, message = %hyv_resp.message, "hoyoverse calendar API error");
+                return Err(ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "calendar API returned an error",
+                ));
+            }
 
-    if hyv_resp.retcode != 0 {
-        tracing::error!(retcode = hyv_resp.retcode, message = %hyv_resp.message, "hoyoverse calendar API error");
-        return Err(ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "calendar API returned an error",
-        ));
-    }
+            let data = hyv_resp.data.ok_or_else(|| {
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "calendar API returned no data",
+                )
+            })?;
 
-    let data = hyv_resp.data.ok_or_else(|| {
-        ApiError::internal_server_error(
-            ApiErrorCode::UPSTREAM_ERROR,
-            "calendar API returned no data",
-        )
-    })?;
-
-    const FANDOM_CACHE_KEY: &str = "/fandom/genshin/event-images";
-    let image_map: HashMap<String, String> =
-        if let Some(bytes) = global.fandom_image_cache.get(FANDOM_CACHE_KEY).await {
-            serde_json::from_slice(&bytes).unwrap_or_default()
-        } else {
+            const FANDOM_CACHE_KEY: &str = "/fandom/genshin/event-images";
             const SKIP_TYPES: &[&str] = &["Test Run", "In-Person", "Web"];
             let names: Vec<String> = data
                 .act_list
@@ -363,30 +358,32 @@ pub(super) async fn get_genshin_calendar(
                 .filter(|a| !SKIP_TYPES.contains(&a.type_name.as_str()))
                 .map(|a| a.name.clone())
                 .collect();
-            let map = fetch_fandom_images(
-                &global.http_client,
-                "https://genshin-impact.fandom.com/api.php",
-                "File:",
-                ".png",
-                &names,
-            )
-            .await;
-            let bytes = Bytes::from(serde_json::to_vec(&map).unwrap_or_default());
-            global
-                .fandom_image_cache
-                .insert(FANDOM_CACHE_KEY.to_string(), bytes)
-                .await;
-            map
-        };
 
-    let calendar = transform_calendar(data, &image_map);
-    let bytes = Bytes::from(
-        serde_json::to_vec(&calendar).expect("CalendarResponse is always serializable"),
-    );
-    global
-        .response_cache
-        .insert(CACHE_KEY.to_string(), bytes.clone())
-        .await;
+            let fandom_bytes = global
+                .fandom_image_cache
+                .get_or_insert(FANDOM_CACHE_KEY.to_string(), async {
+                    let map = fetch_fandom_images(
+                        &global.http_client,
+                        "https://genshin-impact.fandom.com/api.php",
+                        "File:",
+                        ".png",
+                        &names,
+                    )
+                    .await;
+                    Bytes::from(serde_json::to_vec(&map).unwrap_or_default())
+                })
+                .await;
+
+            let image_map: HashMap<String, String> =
+                serde_json::from_slice(&fandom_bytes).unwrap_or_default();
+
+            let calendar = transform_calendar(data, &image_map);
+            Ok(Bytes::from(
+                serde_json::to_vec(&calendar)
+                    .expect("CalendarResponse is always serializable"),
+            ))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }

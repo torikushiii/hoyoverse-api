@@ -279,13 +279,13 @@ async fn get_events(
     let lang = resolve_lang(query.lang)?;
     let cache_key = format!("/hoyolab/{}/news/events/{}", game.slug(), lang);
 
-    if let Some(bytes) = global.news_cache.get(&cache_key).await {
-        return Ok(json_response(bytes));
-    }
-
-    let items = fetch_events(&global.http_client, game.hoyolab_gid(), lang).await?;
-    let bytes = cache_response(&items);
-    global.news_cache.insert(cache_key, bytes.clone()).await;
+    let bytes = global
+        .news_cache
+        .get_or_try_insert(cache_key, async {
+            let items = fetch_events(&global.http_client, game.hoyolab_gid(), lang).await?;
+            Ok(cache_response(&items))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }
@@ -300,13 +300,14 @@ async fn get_notices(
     let lang = resolve_lang(query.lang)?;
     let cache_key = format!("/hoyolab/{}/news/notices/{}", game.slug(), lang);
 
-    if let Some(bytes) = global.news_cache.get(&cache_key).await {
-        return Ok(json_response(bytes));
-    }
-
-    let items = fetch_news(&global.http_client, game.hoyolab_gid(), 1, "notice", lang).await?;
-    let bytes = cache_response(&items);
-    global.news_cache.insert(cache_key, bytes.clone()).await;
+    let bytes = global
+        .news_cache
+        .get_or_try_insert(cache_key, async {
+            let items =
+                fetch_news(&global.http_client, game.hoyolab_gid(), 1, "notice", lang).await?;
+            Ok(cache_response(&items))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }
@@ -321,13 +322,14 @@ async fn get_info(
     let lang = resolve_lang(query.lang)?;
     let cache_key = format!("/hoyolab/{}/news/info/{}", game.slug(), lang);
 
-    if let Some(bytes) = global.news_cache.get(&cache_key).await {
-        return Ok(json_response(bytes));
-    }
-
-    let items = fetch_news(&global.http_client, game.hoyolab_gid(), 3, "info", lang).await?;
-    let bytes = cache_response(&items);
-    global.news_cache.insert(cache_key, bytes.clone()).await;
+    let bytes = global
+        .news_cache
+        .get_or_try_insert(cache_key, async {
+            let items =
+                fetch_news(&global.http_client, game.hoyolab_gid(), 3, "info", lang).await?;
+            Ok(cache_response(&items))
+        })
+        .await?;
 
     Ok(json_response(bytes))
 }

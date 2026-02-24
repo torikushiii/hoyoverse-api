@@ -1,49 +1,47 @@
-use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use axum::body::Bytes;
+use moka::future::Cache;
 use mongodb::bson::doc;
 use mongodb::IndexModel;
-use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::games::Game;
+use crate::http::error::ApiError;
 
 pub struct ResponseCache {
-    store: Arc<RwLock<HashMap<String, (Bytes, Instant)>>>,
-    ttl: Duration,
+    store: Cache<String, Bytes>,
 }
 
 impl ResponseCache {
     pub fn new(ttl: Duration) -> Self {
         Self {
-            store: Arc::new(RwLock::new(HashMap::new())),
-            ttl,
+            store: Cache::builder().time_to_live(ttl).build(),
         }
     }
 
-    pub async fn get(&self, key: &str) -> Option<Bytes> {
-        let store = self.store.read().await;
-        store.get(key).and_then(|(bytes, cached_at)| {
-            if cached_at.elapsed() < self.ttl {
-                Some(bytes.clone())
-            } else {
-                None
-            }
-        })
+    pub async fn get_or_try_insert<F>(&self, key: String, init: F) -> Result<Bytes, ApiError>
+    where
+        F: Future<Output = Result<Bytes, ApiError>>,
+    {
+        self.store
+            .try_get_with(key, init)
+            .await
+            .map_err(|e| (*e).clone())
     }
 
-    pub async fn insert(&self, key: String, bytes: Bytes) {
-        self.store
-            .write()
-            .await
-            .insert(key, (bytes, Instant::now()));
+    pub async fn get_or_insert<F>(&self, key: String, init: F) -> Bytes
+    where
+        F: Future<Output = Bytes>,
+    {
+        self.store.get_with(key, init).await
     }
 
     pub async fn remove(&self, key: &str) {
-        self.store.write().await.remove(key);
+        self.store.invalidate(key).await;
     }
 }
 
