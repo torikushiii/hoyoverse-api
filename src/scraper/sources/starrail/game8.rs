@@ -1,9 +1,24 @@
 use crate::global::Global;
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 const GAME8_URL: &str = "https://game8.co/games/Honkai-Star-Rail/archives/410296";
 const EXPIRED_MARKER: &str = "All Expired Star Rail Redeem Codes";
+
+static ROW_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)<tr>\s*<td.*?>(.*?)</td>\s*<td.*?>(.*?)</td>").expect("invalid row regex")
+});
+static CODE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"value=['"]([^'"]+)['"]"#).expect("invalid code regex"));
+static FALLBACK_CODE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"gift\?code=([A-Z0-9]{4,})").expect("invalid fallback code regex")
+});
+static REWARD_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<div class=['"]align['"]>.*?<a.*?>(.*?)</a>\s*x?\s*([\d,]+)"#)
+        .expect("invalid reward regex")
+});
+static TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<[^>]*>").expect("invalid tag regex"));
 
 #[derive(Debug)]
 pub struct ParsedCode {
@@ -34,33 +49,23 @@ pub fn parse_html(html: &str) -> Vec<ParsedCode> {
         None => html,
     };
 
-    let row_re =
-        Regex::new(r"(?s)<tr>\s*<td.*?>(.*?)</td>\s*<td.*?>(.*?)</td>").expect("invalid row regex");
-    let code_re = Regex::new(r#"value=['"]([^'"]+)['"]"#).expect("invalid code regex");
-    let fallback_code_re =
-        Regex::new(r"gift\?code=([A-Z0-9]{4,})").expect("invalid fallback code regex");
-    let reward_re =
-        Regex::new(r#"(?s)<div class=['"]align['"]>.*?<a.*?>(.*?)</a>\s*x?\s*([\d,]+)"#)
-            .expect("invalid reward regex");
-    let tag_re = Regex::new(r"<[^>]*>").expect("invalid tag regex");
-
     let mut results = Vec::new();
 
-    for cap in row_re.captures_iter(active_html) {
+    for cap in ROW_RE.captures_iter(active_html) {
         let code_td = &cap[1];
         let rewards_td = &cap[2];
 
-        let code = code_re
+        let code = CODE_RE
             .captures(code_td)
             .map(|c| c[1].to_string())
-            .or_else(|| fallback_code_re.captures(code_td).map(|c| c[1].to_string()));
+            .or_else(|| FALLBACK_CODE_RE.captures(code_td).map(|c| c[1].to_string()));
 
         if let Some(code) = code {
             let mut rewards = Vec::new();
-            for r_cap in reward_re.captures_iter(rewards_td) {
+            for r_cap in REWARD_RE.captures_iter(rewards_td) {
                 let name_html = &r_cap[1];
                 let qty = &r_cap[2];
-                let name = tag_re.replace_all(name_html, "").trim().to_string();
+                let name = TAG_RE.replace_all(name_html, "").trim().to_string();
 
                 if !name.is_empty() {
                     let qty = qty.trim_start_matches('x');

@@ -1,8 +1,15 @@
 use crate::global::Global;
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 const TOT_WIKI_URL: &str = "https://tot.wiki/wiki/Redeem_Code";
+
+static ROW_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)<tr>\s*<td[^>]*>.*?</td>\s*<td[^>]*>\s*(.*?)\s*</td>\s*<td[^>]*>(.*?)</td>")
+        .expect("invalid row regex")
+});
+static TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<[^>]*>").expect("invalid tag regex"));
 
 #[derive(Debug)]
 pub struct ParsedCode {
@@ -38,15 +45,9 @@ pub fn parse_html(html: &str) -> Vec<ParsedCode> {
     };
     let table_html = &html[table_start..table_end];
 
-    let row_re = Regex::new(
-        r"(?s)<tr>\s*<td[^>]*>.*?</td>\s*<td[^>]*>\s*(.*?)\s*</td>\s*<td[^>]*>(.*?)</td>",
-    )
-    .expect("invalid row regex");
-    let tag_re = Regex::new(r"<[^>]*>").expect("invalid tag regex");
-
     let mut results = Vec::new();
 
-    for cap in row_re.captures_iter(table_html) {
+    for cap in ROW_RE.captures_iter(table_html) {
         let code_field = cap[1].trim().to_string();
 
         if code_field.is_empty() {
@@ -54,7 +55,7 @@ pub fn parse_html(html: &str) -> Vec<ParsedCode> {
         }
 
         let rewards_html = &cap[2];
-        let rewards_text = tag_re.replace_all(rewards_html, "");
+        let rewards_text = TAG_RE.replace_all(rewards_html, "");
         let rewards = parse_rewards(&rewards_text);
 
         // A cell can contain multiple codes separated by ", "

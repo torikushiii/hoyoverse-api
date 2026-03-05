@@ -1,10 +1,15 @@
 use crate::global::Global;
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 const SPORTSKEEDA_URL: &str =
     "https://www.sportskeeda.com/esports/honkai-star-rail-hsr-4-0-redeem-codes";
 const EXPIRED_MARKER: &str = "Expired Honkai Star Rail";
+
+static LI_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)<li>\s*<strong>([A-Za-z0-9]+):?</strong>:?\s*([^<]+)</li>")
+        .expect("invalid regex")
+});
 
 #[derive(Debug)]
 pub struct ParsedCode {
@@ -35,15 +40,9 @@ pub fn parse_html(html: &str) -> Vec<ParsedCode> {
         None => html,
     };
 
-    // Matches:
-    //   <li><strong>CODE</strong>: rewards</li>
-    //   <li><strong>CODE:</strong> rewards</li>
-    let li_re = Regex::new(r"(?s)<li>\s*<strong>([A-Za-z0-9]+):?</strong>:?\s*([^<]+)</li>")
-        .expect("invalid regex");
-
     let mut results = Vec::new();
 
-    for cap in li_re.captures_iter(active_html) {
+    for cap in LI_RE.captures_iter(active_html) {
         let code = cap[1].trim().to_uppercase();
         // Split rewards on commas, but be careful not to break thousands separators
         // (e.g. "10,000"). Rules per part after splitting on ',':
