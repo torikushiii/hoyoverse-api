@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use hoyoverse_api::scraper::sources::genshin::{fandom as genshin_fandom, game8 as genshin_game8};
 use hoyoverse_api::scraper::sources::honkai::fandom as honkai_fandom;
 use hoyoverse_api::scraper::sources::starrail::{
-    fandom as starrail_fandom, game8 as starrail_game8,
+    fandom as starrail_fandom, game8 as starrail_game8, sportskeeda as starrail_sportskeeda,
 };
 use hoyoverse_api::scraper::sources::themis::tot_wiki as themis_tot_wiki;
 use hoyoverse_api::scraper::sources::zenless::{fandom as zenless_fandom, game8 as zenless_game8};
@@ -103,6 +103,24 @@ async fn main() -> anyhow::Result<()> {
             println!("HTML length: {} chars\n", html.len());
 
             starrail_game8::parse_html(&html)
+                .into_iter()
+                .map(|c| Code {
+                    code: c.code,
+                    rewards: c.rewards,
+                })
+                .collect()
+        }
+
+        ("starrail", "sportskeeda") => {
+            let html = client
+                .get("https://www.sportskeeda.com/esports/honkai-star-rail-hsr-4-0-redeem-codes")
+                .send()
+                .await?
+                .text()
+                .await?;
+            println!("HTML length: {} chars\n", html.len());
+
+            starrail_sportskeeda::parse_html(&html)
                 .into_iter()
                 .map(|c| Code {
                     code: c.code,
@@ -259,6 +277,7 @@ fn print_known_combos() {
     eprintln!("  genshin   game8");
     eprintln!("  starrail  fandom");
     eprintln!("  starrail  game8");
+    eprintln!("  starrail  sportskeeda");
     eprintln!("  zenless   fandom");
     eprintln!("  zenless   game8");
     eprintln!("  honkai    fandom");

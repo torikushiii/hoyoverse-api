@@ -13,10 +13,15 @@ use crate::validator::hoyoverse_api;
 
 pub mod fandom;
 pub mod game8;
+pub mod sportskeeda;
 
 #[tracing::instrument(name = "starrail", skip_all)]
 pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
-    let (fandom_result, game8_result) = tokio::join!(fandom::scrape(global), game8::scrape(global));
+    let (fandom_result, game8_result, sportskeeda_result) = tokio::join!(
+        fandom::scrape(global),
+        game8::scrape(global),
+        sportskeeda::scrape(global)
+    );
 
     let mut all_codes: HashMap<String, (Vec<String>, &'static str)> = HashMap::new();
 
@@ -40,6 +45,17 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
             }
         }
         Err(e) => tracing::error!(error = %e, "game8 scraper failed"),
+    }
+
+    match sportskeeda_result {
+        Ok(scraped) => {
+            for p in scraped {
+                all_codes
+                    .entry(p.code.to_uppercase())
+                    .or_insert((p.rewards, "sportskeeda"));
+            }
+        }
+        Err(e) => tracing::error!(error = %e, "sportskeeda scraper failed"),
     }
 
     if all_codes.is_empty() {
