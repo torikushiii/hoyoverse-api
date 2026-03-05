@@ -66,7 +66,22 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
         for code in &codes {
             match hoyoverse_api::validate_code(global, game, &code.code).await {
                 Ok(resp) => {
-                    if resp.is_expired() || resp.is_invalid() {
+                    if resp.is_credentials_error() {
+                        tracing::error!(
+                            game = game.display_name(),
+                            retcode = resp.retcode,
+                            message = %resp.message,
+                            "invalid credentials, skipping remaining codes"
+                        );
+                        discord::notify_validation_error(
+                            global,
+                            game,
+                            &code.code,
+                            &format!("credentials error (retcode {}): {}", resp.retcode, resp.message),
+                        )
+                        .await;
+                        break;
+                    } else if resp.is_expired() || resp.is_invalid() {
                         tracing::warn!(
                             code = code.code,
                             retcode = resp.retcode,

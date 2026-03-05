@@ -43,6 +43,14 @@ impl RedeemResponse {
     pub fn is_cooldown(&self) -> bool {
         self.retcode == -2016
     }
+
+    /// Credentials are invalid (expired cookie, wrong uid/region, no game account).
+    pub fn is_credentials_error(&self) -> bool {
+        // -1071 = invalid/expired cookies
+        // -1073 = no game account bound to this HoYoLab account
+        // -1075 = no character on this server
+        matches!(self.retcode, -1071 | -1073 | -1075)
+    }
 }
 
 /// Validate a redemption code against the HoYoverse API.
