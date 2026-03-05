@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::database::redemption_code::RedemptionCode;
 use crate::games::Game;
 use crate::global::Global;
+use crate::notifier::discord;
 use crate::util::sleep_until_aligned;
 
 pub mod hoyoverse_api;
@@ -84,6 +85,8 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
                 }
                 Err(e) => {
                     tracing::warn!(code = code.code, error = %e, "failed to validate code");
+                    discord::notify_validation_error(global, game, &code.code, &e.to_string())
+                        .await;
                 }
             }
 

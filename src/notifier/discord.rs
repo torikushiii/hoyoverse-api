@@ -5,6 +5,48 @@ use serde_json::json;
 use crate::games::Game;
 use crate::global::Global;
 
+pub async fn notify_validation_error(
+    global: &Arc<Global>,
+    game: Game,
+    code: &str,
+    error: &str,
+) {
+    let Some(webhook_url) = &global.discord_webhook else {
+        return;
+    };
+
+    let payload = json!({
+        "embeds": [{
+            "title": format!("{} Validator Error", game.display_name()),
+            "color": 0xFF0000u32,
+            "fields": [{
+                "name": format!("`{code}`"),
+                "value": format!("```{error}```"),
+                "inline": false,
+            }],
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }]
+    });
+
+    match global
+        .http_client
+        .post(webhook_url)
+        .json(&payload)
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            tracing::info!(game = game.slug(), code, "discord validation error notification sent");
+        }
+        Ok(resp) => {
+            tracing::warn!(game = game.slug(), status = %resp.status(), "discord validation error notification failed");
+        }
+        Err(e) => {
+            tracing::warn!(game = game.slug(), error = %e, "discord validation error notification request failed");
+        }
+    }
+}
+
 pub async fn notify_new_codes(
     global: &Arc<Global>,
     game: Game,
