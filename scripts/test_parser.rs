@@ -17,6 +17,7 @@ use hoyoverse_api::scraper::sources::honkai::fandom as honkai_fandom;
 use hoyoverse_api::scraper::sources::starrail::{
     fandom as starrail_fandom, game8 as starrail_game8, sportskeeda as starrail_sportskeeda,
 };
+use serde_json::Value;
 use hoyoverse_api::scraper::sources::themis::tot_wiki as themis_tot_wiki;
 use hoyoverse_api::scraper::sources::zenless::{fandom as zenless_fandom, game8 as zenless_game8};
 
@@ -127,6 +128,65 @@ async fn main() -> anyhow::Result<()> {
                     rewards: c.rewards,
                 })
                 .collect()
+        }
+
+        ("starrail", "hoyolab") => {
+            let resp: Value = client
+                .get("https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material?game_id=6")
+                .header("x-rpc-app_version", "4.8.0")
+                .header("x-rpc-client_type", "4")
+                .header("x-rpc-language", "en-us")
+                .header("Referer", "https://www.hoyolab.com/")
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            let item_name = |url: &str| -> Option<&'static str> {
+                let filename = url.rsplit('/').next().unwrap_or(url);
+                let hash = filename.split('.').next().unwrap_or(filename);
+                match hash {
+                    "77cb5426637574ba524ac458fa963da0_6409817950389238658" => Some("Stellar Jade"),
+                    "7cb0e487e051f177d3f41de8d4bbc521_2556290033227986328" => Some("Refined Aether"),
+                    "508229a94e4fa459651f64c1cd02687a_6307505132287490837" => Some("Traveler's Guide"),
+                    "0b12bdf76fa4abc6b4d1fdfc0fb4d6f5_4521150989210768295" => Some("Credit"),
+                    _ => None,
+                }
+            };
+
+            resp["data"]["modules"]
+                .as_array()
+                .map(|modules| {
+                    modules
+                        .iter()
+                        .filter_map(|m| m["exchange_group"]["bonuses"].as_array())
+                        .flatten()
+                        .filter(|b| {
+                            b["code_status"].as_str() == Some("ON")
+                                && !b["exchange_code"].as_str().unwrap_or("").is_empty()
+                        })
+                        .map(|b| {
+                            let rewards = b["icon_bonuses"]
+                                .as_array()
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|ib| {
+                                            let url = ib["icon_url"].as_str()?;
+                                            let num = ib["bonus_num"].as_u64()?;
+                                            let name = item_name(url)?;
+                                            Some(format!("{} ×{}", name, num))
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            Code {
+                                code: b["exchange_code"].as_str().unwrap_or("").to_string(),
+                                rewards,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         }
 
         ("zenless", "fandom") => {
@@ -278,6 +338,7 @@ fn print_known_combos() {
     eprintln!("  starrail  fandom");
     eprintln!("  starrail  game8");
     eprintln!("  starrail  sportskeeda");
+    eprintln!("  starrail  hoyolab");
     eprintln!("  zenless   fandom");
     eprintln!("  zenless   game8");
     eprintln!("  honkai    fandom");
