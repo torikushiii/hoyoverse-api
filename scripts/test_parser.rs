@@ -21,6 +21,7 @@ use serde_json::Value;
 use hoyoverse_api::scraper::sources::themis::tot_wiki as themis_tot_wiki;
 use hoyoverse_api::scraper::sources::zenless::{fandom as zenless_fandom, game8 as zenless_game8};
 
+
 struct Code {
     code: String,
     rewards: Vec<String>,
@@ -222,6 +223,65 @@ async fn main() -> anyhow::Result<()> {
                 .collect()
         }
 
+        ("zenless", "hoyolab") => {
+            let resp: Value = client
+                .get("https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material?game_id=8")
+                .header("x-rpc-app_version", "4.8.0")
+                .header("x-rpc-client_type", "4")
+                .header("x-rpc-language", "en-us")
+                .header("Referer", "https://www.hoyolab.com/")
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            let item_name = |url: &str| -> Option<&'static str> {
+                let filename = url.rsplit('/').next().unwrap_or(url);
+                let hash = filename.split('.').next().unwrap_or(filename);
+                match hash {
+                    "cd6682dd2d871dc93dfa28c3f281d527_6175554878133394960" => Some("Dennies"),
+                    "8609070fe148c0e0e367cda25fdae632_208324374592932270" => Some("Polychrome"),
+                    "6ef3e419022c871257a936b1857ac9d1_411767156105350865" => Some("W-Engine Energy Module"),
+                    "86e1f7a5ff283d527bbc019475847174_5751095862610622324" => Some("Senior Investigator Logs"),
+                    _ => None,
+                }
+            };
+
+            resp["data"]["modules"]
+                .as_array()
+                .map(|modules| {
+                    modules
+                        .iter()
+                        .filter_map(|m| m["exchange_group"]["bonuses"].as_array())
+                        .flatten()
+                        .filter(|b| {
+                            b["code_status"].as_str() == Some("ON")
+                                && !b["exchange_code"].as_str().unwrap_or("").is_empty()
+                        })
+                        .map(|b| {
+                            let rewards = b["icon_bonuses"]
+                                .as_array()
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|ib| {
+                                            let url = ib["icon_url"].as_str()?;
+                                            let num = ib["bonus_num"].as_u64()?;
+                                            let name = item_name(url)?;
+                                            Some(format!("{} ×{}", name, num))
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            Code {
+                                code: b["exchange_code"].as_str().unwrap_or("").to_string(),
+                                rewards,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+
         ("honkai", "fandom") => {
             let wikitext = fetch_fandom_wikitext(
                 &client,
@@ -341,6 +401,7 @@ fn print_known_combos() {
     eprintln!("  starrail  hoyolab");
     eprintln!("  zenless   fandom");
     eprintln!("  zenless   game8");
+    eprintln!("  zenless   hoyolab");
     eprintln!("  honkai    fandom");
     eprintln!("  themis    totwiki");
 }
