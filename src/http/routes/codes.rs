@@ -1,15 +1,15 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::{Body, Bytes};
 use axum::extract::{ConnectInfo, Path, State};
 use axum::http::Response;
 use axum::routing::get;
-use axum::Router;
+use tower_governor::GovernorLayer;
 use tower_governor::errors::GovernorError;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::KeyExtractor;
-use tower_governor::GovernorLayer;
 
 use crate::config::RateLimitConfig;
 use crate::database::redemption_code::{RedemptionCode, RedemptionCodeResponse};

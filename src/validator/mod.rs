@@ -77,7 +77,10 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
                             global,
                             game,
                             &code.code,
-                            &format!("credentials error (retcode {}): {}", resp.retcode, resp.message),
+                            &format!(
+                                "credentials error (retcode {}): {}",
+                                resp.retcode, resp.message
+                            ),
                         )
                         .await;
                         break;

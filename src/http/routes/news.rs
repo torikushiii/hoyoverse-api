@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query, State};
 use axum::http::Response;
 use axum::routing::get;
-use axum::Router;
 
 use crate::games::Game;
 use crate::global::Global;

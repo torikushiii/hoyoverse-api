@@ -80,14 +80,12 @@ fn game_info(slug: &str) -> Option<GameInfo> {
             display_name: "Honkai: Star Rail",
         }),
         "zenless" => Some(GameInfo {
-            endpoint:
-                "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey",
+            endpoint: "https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey",
             game_biz: "nap_global",
             display_name: "Zenless Zone Zero",
         }),
         "themis" => Some(GameInfo {
-            endpoint:
-                "https://public-operation-common.hoyoverse.com/common/apicdkey/api/webExchangeCdkey",
+            endpoint: "https://public-operation-common.hoyoverse.com/common/apicdkey/api/webExchangeCdkey",
             game_biz: "nxx_global",
             display_name: "Tears of Themis",
         }),

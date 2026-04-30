@@ -17,10 +17,9 @@ use hoyoverse_api::scraper::sources::honkai::fandom as honkai_fandom;
 use hoyoverse_api::scraper::sources::starrail::{
     fandom as starrail_fandom, game8 as starrail_game8, sportskeeda as starrail_sportskeeda,
 };
-use serde_json::Value;
 use hoyoverse_api::scraper::sources::themis::tot_wiki as themis_tot_wiki;
 use hoyoverse_api::scraper::sources::zenless::{fandom as zenless_fandom, game8 as zenless_game8};
-
+use serde_json::Value;
 
 struct Code {
     code: String,
@@ -148,8 +147,12 @@ async fn main() -> anyhow::Result<()> {
                 let hash = filename.split('.').next().unwrap_or(filename);
                 match hash {
                     "77cb5426637574ba524ac458fa963da0_6409817950389238658" => Some("Stellar Jade"),
-                    "7cb0e487e051f177d3f41de8d4bbc521_2556290033227986328" => Some("Refined Aether"),
-                    "508229a94e4fa459651f64c1cd02687a_6307505132287490837" => Some("Traveler's Guide"),
+                    "7cb0e487e051f177d3f41de8d4bbc521_2556290033227986328" => {
+                        Some("Refined Aether")
+                    }
+                    "508229a94e4fa459651f64c1cd02687a_6307505132287490837" => {
+                        Some("Traveler's Guide")
+                    }
                     "0b12bdf76fa4abc6b4d1fdfc0fb4d6f5_4521150989210768295" => Some("Credit"),
                     _ => None,
                 }
@@ -241,8 +244,12 @@ async fn main() -> anyhow::Result<()> {
                 match hash {
                     "cd6682dd2d871dc93dfa28c3f281d527_6175554878133394960" => Some("Dennies"),
                     "8609070fe148c0e0e367cda25fdae632_208324374592932270" => Some("Polychrome"),
-                    "6ef3e419022c871257a936b1857ac9d1_411767156105350865" => Some("W-Engine Energy Module"),
-                    "86e1f7a5ff283d527bbc019475847174_5751095862610622324" => Some("Senior Investigator Logs"),
+                    "6ef3e419022c871257a936b1857ac9d1_411767156105350865" => {
+                        Some("W-Engine Energy Module")
+                    }
+                    "86e1f7a5ff283d527bbc019475847174_5751095862610622324" => {
+                        Some("Senior Investigator Logs")
+                    }
                     _ => None,
                 }
             };

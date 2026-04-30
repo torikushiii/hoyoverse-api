@@ -5,8 +5,8 @@ use std::time::Duration;
 use anyhow::Context as _;
 use axum::body::Bytes;
 use moka::future::Cache;
-use mongodb::bson::doc;
 use mongodb::IndexModel;
+use mongodb::bson::doc;
 
 use crate::config::Config;
 use crate::games::Game;

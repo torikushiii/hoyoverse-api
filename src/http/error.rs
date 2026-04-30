@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use axum::response::IntoResponse;
 use axum::Json;
+use axum::response::IntoResponse;
 use hyper::StatusCode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

@@ -3,10 +3,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
+use axum::Router;
 use axum::extract::Request;
 use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
 use axum_prometheus::BaseMetricLayer;
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;

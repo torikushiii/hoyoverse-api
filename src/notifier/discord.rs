@@ -5,12 +5,7 @@ use serde_json::json;
 use crate::games::Game;
 use crate::global::Global;
 
-pub async fn notify_validation_error(
-    global: &Arc<Global>,
-    game: Game,
-    code: &str,
-    error: &str,
-) {
+pub async fn notify_validation_error(global: &Arc<Global>, game: Game, code: &str, error: &str) {
     let Some(webhook_url) = &global.discord_webhook else {
         return;
     };
@@ -36,7 +31,11 @@ pub async fn notify_validation_error(
         .await
     {
         Ok(resp) if resp.status().is_success() => {
-            tracing::info!(game = game.slug(), code, "discord validation error notification sent");
+            tracing::info!(
+                game = game.slug(),
+                code,
+                "discord validation error notification sent"
+            );
         }
         Ok(resp) => {
             tracing::warn!(game = game.slug(), status = %resp.status(), "discord validation error notification failed");
