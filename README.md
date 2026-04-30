@@ -85,6 +85,21 @@ GET /mihoyo/starrail/calendar
 
 Returns current events, character/weapon banners, and challenges.
 
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `lang` | string | `en-us` | Language for calendar content |
+
+Example:
+
+```
+GET /mihoyo/genshin/calendar?lang=ja-jp
+GET /mihoyo/starrail/calendar?lang=ja
+```
+
+Supported language codes and aliases are the same as the [News](#news) endpoints.
+
 **Genshin Impact Response:**
 
 ```json

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::body::{Body, Bytes};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::Response;
 
 use crate::games::starrail;
@@ -10,7 +10,7 @@ use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
 
-use super::{fetch_fandom_images, random_r};
+use super::{LangQuery, cookie_with_lang, fetch_fandom_images, random_r, resolve_lang};
 
 const DS_SALT: &str = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
 
@@ -308,13 +308,15 @@ fn transform_calendar(
 /// Returns current events, banners, and challenges for Honkai: Star Rail.
 #[tracing::instrument(skip(global))]
 pub(super) async fn get_starrail_calendar(
+    Query(query): Query<LangQuery>,
     State(global): State<Arc<Global>>,
 ) -> Result<Response<Body>, ApiError> {
-    const CACHE_KEY: &str = "/mihoyo/starrail/calendar";
+    let lang = resolve_lang(query.lang)?;
+    let cache_key = format!("/mihoyo/starrail/calendar/{lang}");
 
     let bytes = global
         .response_cache
-        .get_or_try_insert(CACHE_KEY.to_string(), async {
+        .get_or_try_insert(cache_key, async {
             let game_config = global
                 .config
                 .validator
@@ -328,6 +330,7 @@ pub(super) async fn get_starrail_calendar(
                 })?;
 
             let ds = generate_ds();
+            let cookie = cookie_with_lang(&game_config.cookie, lang);
 
             let resp = global
                 .http_client
@@ -336,11 +339,11 @@ pub(super) async fn get_starrail_calendar(
                     ("server", &game_config.region),
                     ("role_id", &game_config.uid),
                 ])
-                .header("Cookie", &game_config.cookie)
+                .header("Cookie", cookie)
                 .header("DS", ds)
                 .header("x-rpc-app_version", "1.5.0")
                 .header("x-rpc-client_type", "5")
-                .header("x-rpc-language", "en-us")
+                .header("x-rpc-language", lang)
                 .send()
                 .await
                 .map_err(|e| {

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 
 use crate::global::Global;
+use crate::http::error::{ApiError, ApiErrorCode};
 
 mod genshin;
 mod starrail;
@@ -24,6 +25,67 @@ fn random_r() -> String {
     (0..6)
         .map(|i| CHARSET[(nanos.wrapping_add(i * 7919)) % CHARSET.len()] as char)
         .collect()
+}
+
+const DEFAULT_LANG: &str = "en-us";
+
+const SUPPORTED_LANGS: &[&str] = &[
+    "en-us", "zh-cn", "zh-tw", "de-de", "es-es", "fr-fr", "id-id", "it-it", "ja-jp", "ko-kr",
+    "pt-pt", "ru-ru", "th-th", "tr-tr", "vi-vn",
+];
+
+const LANG_ALIASES: &[(&str, &str)] = &[
+    ("en", "en-us"),
+    ("us", "en-us"),
+    ("zh", "zh-cn"),
+    ("cn", "zh-cn"),
+    ("tw", "zh-tw"),
+    ("de", "de-de"),
+    ("es", "es-es"),
+    ("fr", "fr-fr"),
+    ("id", "id-id"),
+    ("it", "it-it"),
+    ("ja", "ja-jp"),
+    ("jp", "ja-jp"),
+    ("ko", "ko-kr"),
+    ("kr", "ko-kr"),
+    ("pt", "pt-pt"),
+    ("ru", "ru-ru"),
+    ("th", "th-th"),
+    ("tr", "tr-tr"),
+    ("vi", "vi-vn"),
+];
+
+#[derive(Debug, serde::Deserialize)]
+struct LangQuery {
+    lang: Option<String>,
+}
+
+fn resolve_lang(lang: Option<String>) -> Result<&'static str, ApiError> {
+    let lang = lang.as_deref().unwrap_or(DEFAULT_LANG);
+    let lang = LANG_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == lang)
+        .map(|(_, full)| *full)
+        .unwrap_or(lang);
+    SUPPORTED_LANGS
+        .iter()
+        .copied()
+        .find(|&l| l == lang)
+        .ok_or_else(|| {
+            ApiError::bad_request(ApiErrorCode::INVALID_LANGUAGE, "unsupported language")
+        })
+}
+
+fn cookie_with_lang(cookie: &str, lang: &str) -> String {
+    let mut parts: Vec<String> = cookie
+        .split(';')
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && !part.starts_with("mi18nLang="))
+        .map(ToOwned::to_owned)
+        .collect();
+    parts.insert(0, format!("mi18nLang={lang}"));
+    parts.join("; ")
 }
 
 #[derive(serde::Deserialize)]

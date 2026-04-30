@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::body::{Body, Bytes};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::Response;
 
 use crate::games::genshin;
@@ -10,7 +10,7 @@ use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
 
-use super::{fetch_fandom_images, random_r};
+use super::{LangQuery, cookie_with_lang, fetch_fandom_images, random_r, resolve_lang};
 
 const DS_SALT: &str = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
 
@@ -282,13 +282,15 @@ fn transform_calendar(
 /// Returns current events, banners, and challenges for Genshin Impact.
 #[tracing::instrument(skip(global))]
 pub(super) async fn get_genshin_calendar(
+    Query(query): Query<LangQuery>,
     State(global): State<Arc<Global>>,
 ) -> Result<Response<Body>, ApiError> {
-    const CACHE_KEY: &str = "/mihoyo/genshin/calendar";
+    let lang = resolve_lang(query.lang)?;
+    let cache_key = format!("/mihoyo/genshin/calendar/{lang}");
 
     let bytes = global
         .response_cache
-        .get_or_try_insert(CACHE_KEY.to_string(), async {
+        .get_or_try_insert(cache_key, async {
             let game_config = global
                 .config
                 .validator
@@ -307,15 +309,16 @@ pub(super) async fn get_genshin_calendar(
             });
             let body_str = body.to_string();
             let ds = generate_ds(&body_str);
+            let cookie = cookie_with_lang(&game_config.cookie, lang);
 
             let resp = global
                 .http_client
                 .post(genshin::CALENDAR_API)
-                .header("Cookie", &game_config.cookie)
+                .header("Cookie", cookie)
                 .header("DS", ds)
                 .header("x-rpc-app_version", "1.5.0")
                 .header("x-rpc-client_type", "5")
-                .header("x-rpc-language", "en-us")
+                .header("x-rpc-language", lang)
                 .json(&body)
                 .send()
                 .await

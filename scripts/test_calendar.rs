@@ -7,6 +7,8 @@
 
 use serde::Deserialize;
 
+const DEFAULT_LANG: &str = "en-us";
+
 #[derive(Deserialize)]
 struct Config {
     validator: ValidatorConfig,
@@ -70,6 +72,17 @@ fn generate_ds_starrail() -> String {
     let raw = format!("salt={DS_SALT_STARRAIL}&t={t}&r={r}");
     let hash = format!("{:x}", md5::compute(raw.as_bytes()));
     format!("{t},{r},{hash}")
+}
+
+fn cookie_with_lang(cookie: &str, lang: &str) -> String {
+    let mut parts: Vec<String> = cookie
+        .split(';')
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && !part.starts_with("mi18nLang="))
+        .map(ToOwned::to_owned)
+        .collect();
+    parts.insert(0, format!("mi18nLang={lang}"));
+    parts.join("; ")
 }
 
 const GENSHIN_CALENDAR_API: &str =
@@ -222,6 +235,10 @@ struct SRReward {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let lang = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| DEFAULT_LANG.to_string());
+
     let config_str = std::fs::read_to_string("config.toml")
         .map_err(|_| anyhow::anyhow!("config.toml not found — run from project root"))?;
     let config: Config = toml::from_str(&config_str)?;
@@ -230,9 +247,9 @@ async fn main() -> anyhow::Result<()> {
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         .build()?;
 
-    print_genshin_calendar(&client, &config.validator.genshin).await?;
+    print_genshin_calendar(&client, &config.validator.genshin, &lang).await?;
     println!();
-    print_starrail_calendar(&client, &config.validator.starrail).await?;
+    print_starrail_calendar(&client, &config.validator.starrail, &lang).await?;
 
     Ok(())
 }
@@ -240,6 +257,7 @@ async fn main() -> anyhow::Result<()> {
 async fn print_genshin_calendar(
     client: &reqwest::Client,
     creds: &GenshinConfig,
+    lang: &str,
 ) -> anyhow::Result<()> {
     if creds.cookie.is_empty() || creds.uid.is_empty() {
         anyhow::bail!("cookie or uid is empty for [validator.genshin] in config.toml");
@@ -248,19 +266,21 @@ async fn print_genshin_calendar(
     println!("━━ Genshin Impact ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("UID:    {}", creds.uid);
     println!("Region: {}", creds.region);
+    println!("Lang:   {}", lang);
     println!();
 
     let body = serde_json::json!({ "role_id": creds.uid, "server": creds.region });
     let body_str = body.to_string();
     let ds = generate_ds_genshin(&body_str);
+    let cookie = cookie_with_lang(&creds.cookie, lang);
 
     let resp = client
         .post(GENSHIN_CALENDAR_API)
-        .header("Cookie", &creds.cookie)
+        .header("Cookie", cookie)
         .header("DS", ds)
         .header("x-rpc-app_version", "1.5.0")
         .header("x-rpc-client_type", "5")
-        .header("x-rpc-language", "en-us")
+        .header("x-rpc-language", lang)
         .json(&body)
         .send()
         .await?
@@ -359,6 +379,7 @@ async fn print_genshin_calendar(
 async fn print_starrail_calendar(
     client: &reqwest::Client,
     creds: &StarRailConfig,
+    lang: &str,
 ) -> anyhow::Result<()> {
     if creds.cookie.is_empty() || creds.uid.is_empty() {
         anyhow::bail!("cookie or uid is empty for [validator.starrail] in config.toml");
@@ -367,18 +388,20 @@ async fn print_starrail_calendar(
     println!("━━ Honkai: Star Rail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("UID:    {}", creds.uid);
     println!("Region: {}", creds.region);
+    println!("Lang:   {}", lang);
     println!();
 
     let ds = generate_ds_starrail();
+    let cookie = cookie_with_lang(&creds.cookie, lang);
 
     let resp = client
         .get(STARRAIL_CALENDAR_API)
         .query(&[("server", &creds.region), ("role_id", &creds.uid)])
-        .header("Cookie", &creds.cookie)
+        .header("Cookie", cookie)
         .header("DS", ds)
         .header("x-rpc-app_version", "1.5.0")
         .header("x-rpc-client_type", "5")
-        .header("x-rpc-language", "en-us")
+        .header("x-rpc-language", lang)
         .send()
         .await?
         .json::<StarRailResponse>()
