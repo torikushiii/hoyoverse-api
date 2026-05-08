@@ -78,6 +78,67 @@ async fn main() -> anyhow::Result<()> {
                 .collect()
         }
 
+        ("genshin", "hoyolab") => {
+            let resp: Value = client
+                .get("https://bbs-api-os.hoyolab.com/community/painter/wapi/circle/channel/guide/material?game_id=2")
+                .header("x-rpc-app_version", "4.8.0")
+                .header("x-rpc-client_type", "4")
+                .header("x-rpc-language", "en-us")
+                .header("Referer", "https://www.hoyolab.com/")
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            let item_name = |url: &str| -> Option<&'static str> {
+                let filename = url.rsplit('/').next().unwrap_or(url);
+                let hash = filename.split('.').next().unwrap_or(filename);
+                match hash {
+                    "150a941de99e21fc96dce97cde2dae22_1631694835879620915" => Some("Primogem"),
+                    "46de1e881b5dff638969aed85850e388_7373589751062039567" => Some("Hero's Wit"),
+                    "503abf5f2f2c8b2013dde0f2197fc9ac_3214074117670348863" => Some("Mora"),
+                    "d3eb1267f27bead29907cb279d4365ab_4473305467748929436" => {
+                        Some("Mystic Enhancement Ore")
+                    }
+                    _ => None,
+                }
+            };
+
+            resp["data"]["modules"]
+                .as_array()
+                .map(|modules| {
+                    modules
+                        .iter()
+                        .filter_map(|m| m["exchange_group"]["bonuses"].as_array())
+                        .flatten()
+                        .filter(|b| {
+                            b["code_status"].as_str() == Some("ON")
+                                && !b["exchange_code"].as_str().unwrap_or("").is_empty()
+                        })
+                        .map(|b| {
+                            let rewards = b["icon_bonuses"]
+                                .as_array()
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|ib| {
+                                            let url = ib["icon_url"].as_str()?;
+                                            let num = ib["bonus_num"].as_u64()?;
+                                            let name = item_name(url)?;
+                                            Some(format!("{} ×{}", name, num))
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            Code {
+                                code: b["exchange_code"].as_str().unwrap_or("").to_string(),
+                                rewards,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+
         ("starrail", "fandom") => {
             let wikitext = fetch_fandom_wikitext(
                 &client,
@@ -402,6 +463,7 @@ fn print_known_combos() {
     eprintln!("Known combinations:");
     eprintln!("  genshin   fandom");
     eprintln!("  genshin   game8");
+    eprintln!("  genshin   hoyolab");
     eprintln!("  starrail  fandom");
     eprintln!("  starrail  game8");
     eprintln!("  starrail  sportskeeda");
