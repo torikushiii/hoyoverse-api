@@ -23,7 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 futures = "0.3"
 toml = "0.8"
 
-mongodb = { version = "3.0", features = ["snappy-compression", "zlib-compression", "zstd-compression"] }
+mongodb = { version = "3.6.0", default-features = false, features = ["compat-3-0-0", "rustls-tls", "snappy-compression", "zlib-compression", "zstd-compression"] }
 bson = { version = "2.11", features = ["chrono-0_4"] }
 
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
@@ -54,4 +54,3 @@ path = "scripts/test_calendar.rs"
 [[bin]]
 name = "test-notifier"
 path = "scripts/test_notifier.rs"
-
