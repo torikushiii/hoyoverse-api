@@ -29,7 +29,7 @@ region = "os_usa"
 enabled = false
 cookie = ""
 uid = ""
-region = "os_usa"
+region = "prod_gf_us"
 
 [validator.themis]
 enabled = false
