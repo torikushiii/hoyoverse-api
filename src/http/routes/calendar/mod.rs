@@ -9,11 +9,13 @@ use crate::http::error::{ApiError, ApiErrorCode};
 
 mod genshin;
 mod starrail;
+mod zenless;
 
 pub fn routes() -> Router<Arc<Global>> {
     Router::new()
         .route("/genshin/calendar", get(genshin::get_genshin_calendar))
         .route("/starrail/calendar", get(starrail::get_starrail_calendar))
+        .route("/zenless/calendar", get(zenless::get_zenless_calendar))
 }
 
 fn random_r() -> String {
