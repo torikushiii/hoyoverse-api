@@ -1,4 +1,4 @@
-//! Combined test for Genshin Impact and Honkai: Star Rail activity calendars.
+//! Combined test for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero activity calendars.
 //!
 //! Reads credentials from config.toml, calls each game's HoYoLab calendar endpoint,
 //! and prints events, banners, and challenges in a unified format.
@@ -18,6 +18,7 @@ struct Config {
 struct ValidatorConfig {
     genshin: GenshinConfig,
     starrail: StarRailConfig,
+    zenless: ZenlessConfig,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +45,18 @@ fn starrail_default_region() -> String {
     "prod_official_usa".to_string()
 }
 
+#[derive(Deserialize)]
+struct ZenlessConfig {
+    cookie: String,
+    uid: String,
+    #[serde(default = "zenless_default_region")]
+    region: String,
+}
+
+fn zenless_default_region() -> String {
+    "prod_gf_us".to_string()
+}
+
 const DS_SALT_GENSHIN: &str = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
 const DS_SALT_STARRAIL: &str = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
 
@@ -56,6 +69,30 @@ fn random_r() -> String {
     (0..6)
         .map(|i| CHARSET[(nanos.wrapping_add(i * 7919)) % CHARSET.len()] as char)
         .collect()
+}
+
+fn map_profession(id: u8) -> &'static str {
+    match id {
+        1 => "attack",
+        2 => "stun",
+        3 => "anomaly",
+        4 => "support",
+        5 => "defence",
+        6 => "rupture",
+        _ => "unknown",
+    }
+}
+
+fn map_element(id: u16) -> &'static str {
+    match id {
+        200 => "Physical",
+        201 => "Fire",
+        202 => "Ice",
+        203 => "Electric",
+        204 => "Wind",
+        205 => "Ether",
+        _ => "unknown",
+    }
 }
 
 fn generate_ds_genshin(body: &str) -> String {
@@ -233,6 +270,84 @@ struct SRReward {
     num: u64,
 }
 
+const ZENLESS_ACTIVITY_CALENDAR_API: &str =
+    "https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz/activity_calendar";
+const ZENLESS_GACHA_CALENDAR_API: &str =
+    "https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz/gacha_calendar";
+
+#[derive(Deserialize)]
+struct ZenlessActivityResponse {
+    retcode: i32,
+    message: String,
+    data: Option<ZenlessActivityData>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessActivityData {
+    activity_list: Vec<ZenlessActivity>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessActivity {
+    activity_id: u64,
+    state: String,
+    name: String,
+    monochrome_cnt: u64,
+    start_ts: i64,
+    end_ts: i64,
+}
+
+#[derive(Deserialize)]
+struct ZenlessGachaResponse {
+    retcode: i32,
+    message: String,
+    data: Option<ZenlessGachaData>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessGachaData {
+    avatar_gacha_schedule_list: Vec<ZenlessAvatarGacha>,
+    weapon_gacha_schedule_list: Vec<ZenlessWeaponGacha>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessAvatarGacha {
+    gacha_type: String,
+    gacha_state: String,
+    start_ts: i64,
+    end_ts: i64,
+    version: String,
+    avatar_list: Vec<ZenlessAvatar>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessWeaponGacha {
+    gacha_type: String,
+    gacha_state: String,
+    start_ts: i64,
+    end_ts: i64,
+    version: String,
+    weapon_list: Vec<ZenlessWeapon>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessAvatar {
+    avatar_id: u64,
+    avatar_name: String,
+    full_name: String,
+    rarity: String,
+    avatar_profession: u8,
+    avatar_element_type: u16,
+}
+
+#[derive(Deserialize)]
+struct ZenlessWeapon {
+    weapon_id: u64,
+    rarity: String,
+    talent_title: String,
+    profession: u8,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let lang = std::env::args()
@@ -250,6 +365,8 @@ async fn main() -> anyhow::Result<()> {
     print_genshin_calendar(&client, &config.validator.genshin, &lang).await?;
     println!();
     print_starrail_calendar(&client, &config.validator.starrail, &lang).await?;
+    println!();
+    print_zenless_calendar(&client, &config.validator.zenless, &lang).await?;
 
     Ok(())
 }
@@ -516,6 +633,135 @@ async fn print_starrail_calendar(
                 "       special: {} x{} (rarity {})",
                 sr.name, sr.num, sr.rarity
             );
+        }
+    }
+
+    Ok(())
+}
+
+async fn print_zenless_calendar(
+    client: &reqwest::Client,
+    creds: &ZenlessConfig,
+    lang: &str,
+) -> anyhow::Result<()> {
+    if creds.cookie.is_empty() || creds.uid.is_empty() {
+        anyhow::bail!("cookie or uid is empty for [validator.zenless] in config.toml");
+    }
+
+    println!("━━ Zenless Zone Zero ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("UID:    {}", creds.uid);
+    println!("Region: {}", creds.region);
+    println!("Lang:   {}", lang);
+    println!();
+
+    let cookie = cookie_with_lang(&creds.cookie, lang);
+
+    let activity_resp = client
+        .get(ZENLESS_ACTIVITY_CALENDAR_API)
+        .query(&[("uid", &creds.uid), ("region", &creds.region)])
+        .header("Cookie", cookie.clone())
+        .header("x-rpc-language", lang)
+        .send()
+        .await?
+        .json::<ZenlessActivityResponse>()
+        .await?;
+
+    if activity_resp.retcode != 0 {
+        anyhow::bail!(
+            "activity API error {}: {}",
+            activity_resp.retcode,
+            activity_resp.message
+        );
+    }
+
+    let activity_data = activity_resp
+        .data
+        .ok_or_else(|| anyhow::anyhow!("activity API returned no data"))?;
+
+    let gacha_resp = client
+        .get(ZENLESS_GACHA_CALENDAR_API)
+        .query(&[("uid", &creds.uid), ("region", &creds.region)])
+        .header("Cookie", cookie)
+        .header("x-rpc-language", lang)
+        .send()
+        .await?
+        .json::<ZenlessGachaResponse>()
+        .await?;
+
+    if gacha_resp.retcode != 0 {
+        anyhow::bail!(
+            "gacha API error {}: {}",
+            gacha_resp.retcode,
+            gacha_resp.message
+        );
+    }
+
+    let gacha_data = gacha_resp
+        .data
+        .ok_or_else(|| anyhow::anyhow!("gacha API returned no data"))?;
+
+    println!(
+        "── Events ({}) ──────────────────────────────",
+        activity_data.activity_list.len()
+    );
+    for e in &activity_data.activity_list {
+        println!("  [{}] {} ({})", e.activity_id, e.name, e.state);
+        println!("       {} → {}", e.start_ts, e.end_ts);
+        println!("       polychrome: {}", e.monochrome_cnt);
+    }
+
+    println!();
+
+    let banner_count =
+        gacha_data.avatar_gacha_schedule_list.len() + gacha_data.weapon_gacha_schedule_list.len();
+    println!(
+        "── Banners ({}) ──────────────────────────────",
+        banner_count
+    );
+    for b in &gacha_data.avatar_gacha_schedule_list {
+        println!("  {} v{} ({})", b.gacha_type, b.version, b.gacha_state);
+        println!("       {} → {}", b.start_ts, b.end_ts);
+        if !b.avatar_list.is_empty() {
+            let agents: Vec<_> = b
+                .avatar_list
+                .iter()
+                .map(|a| {
+                    let name = if a.full_name.is_empty() {
+                        a.avatar_name.as_str()
+                    } else {
+                        a.full_name.as_str()
+                    };
+                    format!(
+                        "{} #{} (★{} {} {})",
+                        name,
+                        a.avatar_id,
+                        a.rarity,
+                        map_profession(a.avatar_profession),
+                        map_element(a.avatar_element_type)
+                    )
+                })
+                .collect();
+            println!("       agents: {}", agents.join(", "));
+        }
+    }
+    for b in &gacha_data.weapon_gacha_schedule_list {
+        println!("  {} v{} ({})", b.gacha_type, b.version, b.gacha_state);
+        println!("       {} → {}", b.start_ts, b.end_ts);
+        if !b.weapon_list.is_empty() {
+            let weapons: Vec<_> = b
+                .weapon_list
+                .iter()
+                .map(|w| {
+                    format!(
+                        "{} #{} (★{} {})",
+                        w.talent_title,
+                        w.weapon_id,
+                        w.rarity,
+                        map_profession(w.profession)
+                    )
+                })
+                .collect();
+            println!("       w-engines: {}", weapons.join(", "));
         }
     }
 
