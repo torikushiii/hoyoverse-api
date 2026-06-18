@@ -76,11 +76,12 @@ Returns active and inactive redemption codes for the specified game.
 
 ### Event Calendar
 
-Available for **Genshin Impact** and **Honkai: Star Rail** only.
+Available for **Genshin Impact**, **Honkai: Star Rail**, and **Zenless Zone Zero**.
 
 ```
 GET /mihoyo/genshin/calendar
 GET /mihoyo/starrail/calendar
+GET /mihoyo/zenless/calendar
 ```
 
 Returns current events, character/weapon banners, and challenges.
@@ -96,6 +97,7 @@ Example:
 ```
 GET /mihoyo/genshin/calendar?lang=ja-jp
 GET /mihoyo/starrail/calendar?lang=ja
+GET /mihoyo/zenless/calendar?lang=zh-cn
 ```
 
 Supported language codes and aliases are the same as the [News](#news) endpoints.
@@ -166,6 +168,54 @@ Supported language codes and aliases are the same as the [News](#news) endpoints
 ```
 
 The **Star Rail** calendar response follows the same structure but with `light_cones` instead of `weapons`, and characters/light cones include an additional `path` field.
+
+**Zenless Zone Zero Response:**
+
+```json
+{
+  "events": [
+    {
+      "id": 18000003,
+      "name": "Event Name",
+      "state": "STATE_IN_PROGRESS",
+      "image_url": "https://...",
+      "start_time": 1700000000,
+      "end_time": 1700100000,
+      "polychrome": 400
+    }
+  ],
+  "banners": [
+    {
+      "banner_type": "GACHA_TYPE_CHARACTER_UP",
+      "state": "GACHA_STATE_IN_PROGRESS",
+      "version": "3.0",
+      "agents": [
+        {
+          "id": 1561,
+          "name": "Agent Name",
+          "full_name": "Full Agent Name",
+          "icon": "https://...",
+          "rarity": "S",
+          "profession": "anomaly",
+          "element": "Wind"
+        }
+      ],
+      "w_engines": [
+        {
+          "id": 14156,
+          "name": "W-Engine Name",
+          "icon": "https://...",
+          "rarity": "S",
+          "profession": "anomaly"
+        }
+      ],
+      "start_time": 1700000000,
+      "end_time": 1700100000
+    }
+  ],
+  "challenges": []
+}
+```
 
 ---
 
