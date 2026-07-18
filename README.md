@@ -213,9 +213,40 @@ The **Star Rail** calendar response follows the same structure but with `light_c
       "end_time": 1700100000
     }
   ],
-  "challenges": []
+  "challenges": [
+    {
+      "id": 1,
+      "name": "Deadly Assault",
+      "type_name": "deadly_assault",
+      "start_time": 1700000000,
+      "end_time": 1700100000
+    },
+    {
+      "id": 2,
+      "name": "Threshold Simulation",
+      "type_name": "threshold_simulation",
+      "start_time": 1700000000,
+      "end_time": null
+    },
+    {
+      "id": 3,
+      "name": "Shiyu Defense",
+      "type_name": "shiyu_defense",
+      "start_time": null,
+      "end_time": null
+    },
+    {
+      "id": 4,
+      "name": "Annihilation Simulacrum",
+      "type_name": "annihilation_simulacrum",
+      "start_time": 1700000000,
+      "end_time": 1700100000
+    }
+  ]
 }
 ```
+
+Zenless challenge names follow the requested `lang` where official localization is available; `type_name` remains stable across languages. Italian and Turkish currently fall back to English challenge names because the official Zenless localization bundle does not provide those locales. Available dates use Unix seconds converted from game server time. Upstream missing, invalid, or inactive period dates return `null`.
 
 ---
 
