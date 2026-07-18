@@ -5,7 +5,9 @@
 //!
 //! Run with: cargo run --bin test-calendar
 
+use chrono::{FixedOffset, TimeZone};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 const DEFAULT_LANG: &str = "en-us";
 
@@ -274,6 +276,13 @@ const ZENLESS_ACTIVITY_CALENDAR_API: &str =
     "https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz/activity_calendar";
 const ZENLESS_GACHA_CALENDAR_API: &str =
     "https://sg-act-public-api.hoyolab.com/event/game_record_zzz/api/zzz/gacha_calendar";
+const ZENLESS_DEADLY_ASSAULT_API: &str =
+    "https://sg-act-nap-api.hoyolab.com/event/game_record_zzz/api/zzz/mem_detail";
+const ZENLESS_THRESHOLD_SIMULATION_API: &str = "https://sg-act-nap-api.hoyolab.com/event/game_record_zzz/api/zzz/void_front_battle_period_abstract_info";
+const ZENLESS_SHIYU_DEFENSE_API: &str =
+    "https://sg-act-nap-api.hoyolab.com/event/game_record_zzz/api/zzz/hadal_info_v2";
+const ZENLESS_ANNIHILATION_SIMULACRUM_API: &str =
+    "https://sg-act-nap-api.hoyolab.com/event/game_record_zzz/api/zzz/holo_boss_detail";
 
 #[derive(Deserialize)]
 struct ZenlessActivityResponse {
@@ -346,6 +355,182 @@ struct ZenlessWeapon {
     rarity: String,
     talent_title: String,
     profession: u8,
+}
+
+#[derive(Deserialize)]
+struct ZenlessChallengeResponse<T> {
+    retcode: i32,
+    message: String,
+    data: Option<T>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessDateTime {
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+}
+
+#[derive(Deserialize)]
+struct ZenlessChallengePeriod {
+    start_time: Option<ZenlessDateTime>,
+    end_time: Option<ZenlessDateTime>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessThresholdData {
+    void_front_battle_abstract_info_brief: Option<ZenlessChallengePeriod>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessShiyuData {
+    hadal_info_v2: Option<ZenlessShiyuPeriod>,
+}
+
+#[derive(Deserialize)]
+struct ZenlessShiyuPeriod {
+    begin_time: Option<String>,
+    end_time: Option<String>,
+    hadal_begin_time: Option<ZenlessDateTime>,
+    hadal_end_time: Option<ZenlessDateTime>,
+}
+
+fn zenless_server_offset(region: &str) -> Option<FixedOffset> {
+    match region {
+        "prod_gf_us" => FixedOffset::west_opt(5 * 60 * 60),
+        "prod_gf_eu" => FixedOffset::east_opt(60 * 60),
+        "prod_gf_jp" | "prod_gf_sg" => FixedOffset::east_opt(8 * 60 * 60),
+        _ => None,
+    }
+}
+
+fn zenless_structured_timestamp(value: Option<&ZenlessDateTime>, region: &str) -> Option<i64> {
+    let value = value?;
+    zenless_server_offset(region)?
+        .with_ymd_and_hms(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+        )
+        .single()
+        .map(|date| date.timestamp())
+}
+
+fn zenless_numeric_timestamp(value: Option<&str>) -> Option<i64> {
+    value?.parse().ok().filter(|timestamp| *timestamp > 0)
+}
+
+fn zenless_challenge_names(lang: &str) -> [&'static str; 4] {
+    match lang {
+        "zh-cn" => ["危局强袭战", "临界推演", "式舆防卫战", "拟境湮灭战"],
+        "zh-tw" => ["危局強襲戰", "臨界推演", "式輿防衛戰", "擬境湮滅戰"],
+        "de-de" => [
+            "Gefährlicher Überfall",
+            "Schwellensimulation",
+            "Shiyu-Verteidigung",
+            "Vernichtungs-Simulakrum",
+        ],
+        "es-es" => [
+            "Incursión arriesgada",
+            "Simulación de umbral",
+            "Defensa shiyu",
+            "Simulacro de aniquilación",
+        ],
+        "fr-fr" => [
+            "Assaut mortel",
+            "Simulation de seuil",
+            "Défense de Shiyu",
+            "Simulacre d'annihilation",
+        ],
+        "id-id" => [
+            "Operasi Serbuan Maut",
+            "Simulasi Ambang Batas",
+            "Shiyu Defense",
+            "Simulasi Pertempuran Pemusnahan",
+        ],
+        "ja-jp" => ["危局強襲戦", "臨界推演", "式輿防衛戦", "仮想殲滅作戦"],
+        "ko-kr" => [
+            "위험한 강습전",
+            "임계 시뮬레이션",
+            "시유 방어전",
+            "모의 세계 섬멸전",
+        ],
+        "pt-pt" => [
+            "Investida Mortal",
+            "Simulação do Limiar",
+            "Defesa Shiyu",
+            "Simulacro da Aniquilação",
+        ],
+        "ru-ru" => [
+            "Опасный штурм",
+            "Крит. симуляция",
+            "Оборона шиюй",
+            "Симулякры и аннигиляция",
+        ],
+        "th-th" => [
+            "ศึกวิกฤติ",
+            "การจำลองจุดวิกฤต",
+            "Shiyu Defense",
+            "ศึกจำลองทำลายล้าง",
+        ],
+        "vi-vn" => [
+            "Tập Kích Nguy Cấp",
+            "Suy Đoán Chạm Ngưỡng",
+            "Bảo Vệ Trụ Shiyu",
+            "Chiến Hủy Diệt Giả Lập",
+        ],
+        _ => [
+            "Deadly Assault",
+            "Threshold Simulation",
+            "Shiyu Defense",
+            "Annihilation Simulacrum",
+        ],
+    }
+}
+
+fn print_zenless_challenge(name: &str, start_time: Option<i64>, end_time: Option<i64>) {
+    let start_time = start_time
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unavailable".to_string());
+    let end_time = end_time
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unavailable".to_string());
+    println!("  {name}");
+    println!("       {start_time} → {end_time}");
+}
+
+async fn fetch_zenless_challenge<T>(request: reqwest::RequestBuilder, name: &str) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            println!("  {name}: request failed: {error}");
+            return None;
+        }
+    };
+    let response: ZenlessChallengeResponse<T> = match response.json().await {
+        Ok(response) => response,
+        Err(error) => {
+            println!("  {name}: response parse failed: {error}");
+            return None;
+        }
+    };
+    if response.retcode != 0 {
+        println!(
+            "  {name}: API error {}: {}",
+            response.retcode, response.message
+        );
+        return None;
+    }
+    response.data
 }
 
 #[tokio::main]
@@ -658,7 +843,11 @@ async fn print_zenless_calendar(
 
     let activity_resp = client
         .get(ZENLESS_ACTIVITY_CALENDAR_API)
-        .query(&[("uid", &creds.uid), ("region", &creds.region)])
+        .query(&[
+            ("uid", creds.uid.as_str()),
+            ("region", creds.region.as_str()),
+            ("lang", lang),
+        ])
         .header("Cookie", cookie.clone())
         .header("x-rpc-language", lang)
         .send()
@@ -680,8 +869,12 @@ async fn print_zenless_calendar(
 
     let gacha_resp = client
         .get(ZENLESS_GACHA_CALENDAR_API)
-        .query(&[("uid", &creds.uid), ("region", &creds.region)])
-        .header("Cookie", cookie)
+        .query(&[
+            ("uid", creds.uid.as_str()),
+            ("region", creds.region.as_str()),
+            ("lang", lang),
+        ])
+        .header("Cookie", cookie.clone())
         .header("x-rpc-language", lang)
         .send()
         .await?
@@ -699,6 +892,62 @@ async fn print_zenless_calendar(
     let gacha_data = gacha_resp
         .data
         .ok_or_else(|| anyhow::anyhow!("gacha API returned no data"))?;
+
+    let deadly_request = client
+        .get(ZENLESS_DEADLY_ASSAULT_API)
+        .query(&[
+            ("uid", creds.uid.as_str()),
+            ("region", creds.region.as_str()),
+            ("schedule_type", "1"),
+            ("lang", lang),
+        ])
+        .header("Cookie", cookie.clone())
+        .header("x-rpc-lang", lang)
+        .header("x-rpc-language", lang);
+    let threshold_request = client
+        .get(ZENLESS_THRESHOLD_SIMULATION_API)
+        .query(&[
+            ("region", creds.region.as_str()),
+            ("uid", creds.uid.as_str()),
+            ("schedule_type", "1"),
+            ("lang", lang),
+        ])
+        .header("Cookie", cookie.clone())
+        .header("x-rpc-lang", lang)
+        .header("x-rpc-language", lang);
+    let shiyu_request = client
+        .get(ZENLESS_SHIYU_DEFENSE_API)
+        .query(&[
+            ("server", creds.region.as_str()),
+            ("role_id", creds.uid.as_str()),
+            ("schedule_type", "1"),
+            ("without_v2_detail", "true"),
+            ("lang", lang),
+        ])
+        .header("Cookie", cookie.clone())
+        .header("x-rpc-lang", lang)
+        .header("x-rpc-language", lang);
+    let annihilation_request = client
+        .get(ZENLESS_ANNIHILATION_SIMULACRUM_API)
+        .query(&[
+            ("region", creds.region.as_str()),
+            ("uid", creds.uid.as_str()),
+            ("schedule_type", "1"),
+            ("lang", lang),
+        ])
+        .header("Cookie", cookie)
+        .header("x-rpc-lang", lang)
+        .header("x-rpc-language", lang);
+
+    let (deadly, threshold, shiyu, annihilation) = tokio::join!(
+        fetch_zenless_challenge::<ZenlessChallengePeriod>(deadly_request, "Deadly Assault"),
+        fetch_zenless_challenge::<ZenlessThresholdData>(threshold_request, "Threshold Simulation"),
+        fetch_zenless_challenge::<ZenlessShiyuData>(shiyu_request, "Shiyu Defense"),
+        fetch_zenless_challenge::<ZenlessChallengePeriod>(
+            annihilation_request,
+            "Annihilation Simulacrum"
+        ),
+    );
 
     println!(
         "── Events ({}) ──────────────────────────────",
@@ -764,6 +1013,46 @@ async fn print_zenless_calendar(
             println!("       w-engines: {}", weapons.join(", "));
         }
     }
+
+    println!();
+    println!("── Challenges (4) ───────────────────────────");
+    let challenge_names = zenless_challenge_names(lang);
+
+    let deadly_start = deadly
+        .as_ref()
+        .and_then(|data| zenless_structured_timestamp(data.start_time.as_ref(), &creds.region));
+    let deadly_end = deadly
+        .as_ref()
+        .and_then(|data| zenless_structured_timestamp(data.end_time.as_ref(), &creds.region));
+    print_zenless_challenge(challenge_names[0], deadly_start, deadly_end);
+
+    let threshold_period = threshold
+        .as_ref()
+        .and_then(|data| data.void_front_battle_abstract_info_brief.as_ref());
+    let threshold_start = threshold_period
+        .and_then(|data| zenless_structured_timestamp(data.start_time.as_ref(), &creds.region));
+    let threshold_end = threshold_period
+        .and_then(|data| zenless_structured_timestamp(data.end_time.as_ref(), &creds.region));
+    print_zenless_challenge(challenge_names[1], threshold_start, threshold_end);
+
+    let shiyu_period = shiyu.as_ref().and_then(|data| data.hadal_info_v2.as_ref());
+    let shiyu_start = shiyu_period.and_then(|data| {
+        zenless_numeric_timestamp(data.begin_time.as_deref())
+            .or_else(|| zenless_structured_timestamp(data.hadal_begin_time.as_ref(), &creds.region))
+    });
+    let shiyu_end = shiyu_period.and_then(|data| {
+        zenless_numeric_timestamp(data.end_time.as_deref())
+            .or_else(|| zenless_structured_timestamp(data.hadal_end_time.as_ref(), &creds.region))
+    });
+    print_zenless_challenge(challenge_names[2], shiyu_start, shiyu_end);
+
+    let annihilation_start = annihilation
+        .as_ref()
+        .and_then(|data| zenless_structured_timestamp(data.start_time.as_ref(), &creds.region));
+    let annihilation_end = annihilation
+        .as_ref()
+        .and_then(|data| zenless_structured_timestamp(data.end_time.as_ref(), &creds.region));
+    print_zenless_challenge(challenge_names[3], annihilation_start, annihilation_end);
 
     Ok(())
 }
