@@ -4,6 +4,8 @@ use std::sync::Arc;
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
 use axum::http::Response;
+use chrono::{FixedOffset, TimeZone, Utc};
+use serde::de::DeserializeOwned;
 
 use crate::games::zenless;
 use crate::global::Global;
@@ -87,6 +89,47 @@ struct HyvWeapon {
     profession: u8,
 }
 
+#[derive(serde::Deserialize)]
+struct HyvChallengeResponse<T> {
+    retcode: i32,
+    message: String,
+    data: Option<T>,
+}
+
+#[derive(serde::Deserialize)]
+struct HyvDateTime {
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+}
+
+#[derive(serde::Deserialize)]
+struct HyvChallengePeriod {
+    start_time: Option<HyvDateTime>,
+    end_time: Option<HyvDateTime>,
+}
+
+#[derive(serde::Deserialize)]
+struct HyvThresholdData {
+    void_front_battle_abstract_info_brief: Option<HyvChallengePeriod>,
+}
+
+#[derive(serde::Deserialize)]
+struct HyvShiyuData {
+    hadal_info_v2: Option<HyvShiyuPeriod>,
+}
+
+#[derive(serde::Deserialize)]
+struct HyvShiyuPeriod {
+    begin_time: Option<String>,
+    end_time: Option<String>,
+    hadal_begin_time: Option<HyvDateTime>,
+    hadal_end_time: Option<HyvDateTime>,
+}
+
 #[derive(serde::Serialize)]
 struct CalendarResponse {
     events: Vec<Event>,
@@ -137,7 +180,262 @@ struct WEngine {
 }
 
 #[derive(serde::Serialize)]
-struct Challenge {}
+struct Challenge {
+    id: u64,
+    name: String,
+    type_name: String,
+    start_time: Option<i64>,
+    end_time: Option<i64>,
+}
+
+#[derive(Default)]
+struct ChallengePeriod {
+    start_time: Option<i64>,
+    end_time: Option<i64>,
+}
+
+fn server_offset(region: &str) -> Option<FixedOffset> {
+    match region {
+        "prod_gf_us" => FixedOffset::west_opt(5 * 60 * 60),
+        "prod_gf_eu" => FixedOffset::east_opt(60 * 60),
+        "prod_gf_jp" | "prod_gf_sg" => FixedOffset::east_opt(8 * 60 * 60),
+        _ => None,
+    }
+}
+
+fn structured_timestamp(value: Option<&HyvDateTime>, region: &str) -> Option<i64> {
+    let value = value?;
+    let offset = server_offset(region)?;
+    offset
+        .with_ymd_and_hms(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+        )
+        .single()
+        .map(|date| date.timestamp())
+}
+
+fn numeric_timestamp(value: Option<&str>) -> Option<i64> {
+    value?.parse().ok().filter(|timestamp| *timestamp > 0)
+}
+
+fn normalize_period(start_time: Option<i64>, end_time: Option<i64>) -> ChallengePeriod {
+    let end_time = match (start_time, end_time) {
+        (Some(start), Some(end)) if end < start => None,
+        (_, end) => end,
+    };
+
+    ChallengePeriod {
+        start_time,
+        end_time,
+    }
+}
+
+fn structured_period(data: Option<HyvChallengePeriod>, region: &str) -> ChallengePeriod {
+    let Some(data) = data else {
+        return ChallengePeriod::default();
+    };
+    normalize_period(
+        structured_timestamp(data.start_time.as_ref(), region),
+        structured_timestamp(data.end_time.as_ref(), region),
+    )
+}
+
+const SHIYU_PERIOD_SECONDS: i64 = 14 * 24 * 60 * 60;
+
+fn hardcoded_shiyu_period(region: &str) -> ChallengePeriod {
+    let anchor = HyvDateTime {
+        year: 2026,
+        month: 6,
+        day: 26,
+        hour: 4,
+        minute: 0,
+        second: 0,
+    };
+    let Some(anchor_time) = structured_timestamp(Some(&anchor), region) else {
+        return ChallengePeriod::default();
+    };
+    let period_index = (Utc::now().timestamp() - anchor_time).div_euclid(SHIYU_PERIOD_SECONDS);
+    let start_time = anchor_time + period_index * SHIYU_PERIOD_SECONDS;
+
+    ChallengePeriod {
+        start_time: Some(start_time),
+        end_time: Some(start_time + SHIYU_PERIOD_SECONDS - 1),
+    }
+}
+
+fn shiyu_period(data: Option<HyvShiyuData>, region: &str) -> ChallengePeriod {
+    let Some(period) = data.and_then(|data| data.hadal_info_v2) else {
+        return hardcoded_shiyu_period(region);
+    };
+    let start_time = numeric_timestamp(period.begin_time.as_deref())
+        .or_else(|| structured_timestamp(period.hadal_begin_time.as_ref(), region));
+    let end_time = numeric_timestamp(period.end_time.as_deref())
+        .or_else(|| structured_timestamp(period.hadal_end_time.as_ref(), region));
+
+    match normalize_period(start_time, end_time) {
+        ChallengePeriod {
+            start_time: None,
+            end_time: None,
+        } => hardcoded_shiyu_period(region),
+        ChallengePeriod {
+            start_time: Some(start_time),
+            end_time: None,
+        } => ChallengePeriod {
+            start_time: Some(start_time),
+            end_time: Some(start_time + SHIYU_PERIOD_SECONDS - 1),
+        },
+        ChallengePeriod {
+            start_time: None,
+            end_time: Some(end_time),
+        } => ChallengePeriod {
+            start_time: Some(end_time - SHIYU_PERIOD_SECONDS + 1),
+            end_time: Some(end_time),
+        },
+        period => period,
+    }
+}
+
+fn challenge_names(lang: &str) -> [&'static str; 4] {
+    match lang {
+        "zh-cn" => ["危局强袭战", "临界推演", "式舆防卫战", "拟境湮灭战"],
+        "zh-tw" => ["危局強襲戰", "臨界推演", "式輿防衛戰", "擬境湮滅戰"],
+        "de-de" => [
+            "Gefährlicher Überfall",
+            "Schwellensimulation",
+            "Shiyu-Verteidigung",
+            "Vernichtungs-Simulakrum",
+        ],
+        "es-es" => [
+            "Incursión arriesgada",
+            "Simulación de umbral",
+            "Defensa shiyu",
+            "Simulacro de aniquilación",
+        ],
+        "fr-fr" => [
+            "Assaut mortel",
+            "Simulation de seuil",
+            "Défense de Shiyu",
+            "Simulacre d'annihilation",
+        ],
+        "id-id" => [
+            "Operasi Serbuan Maut",
+            "Simulasi Ambang Batas",
+            "Shiyu Defense",
+            "Simulasi Pertempuran Pemusnahan",
+        ],
+        "ja-jp" => ["危局強襲戦", "臨界推演", "式輿防衛戦", "仮想殲滅作戦"],
+        "ko-kr" => [
+            "위험한 강습전",
+            "임계 시뮬레이션",
+            "시유 방어전",
+            "모의 세계 섬멸전",
+        ],
+        "pt-pt" => [
+            "Investida Mortal",
+            "Simulação do Limiar",
+            "Defesa Shiyu",
+            "Simulacro da Aniquilação",
+        ],
+        "ru-ru" => [
+            "Опасный штурм",
+            "Крит. симуляция",
+            "Оборона шиюй",
+            "Симулякры и аннигиляция",
+        ],
+        "th-th" => [
+            "ศึกวิกฤติ",
+            "การจำลองจุดวิกฤต",
+            "Shiyu Defense",
+            "ศึกจำลองทำลายล้าง",
+        ],
+        "vi-vn" => [
+            "Tập Kích Nguy Cấp",
+            "Suy Đoán Chạm Ngưỡng",
+            "Bảo Vệ Trụ Shiyu",
+            "Chiến Hủy Diệt Giả Lập",
+        ],
+        _ => [
+            "Deadly Assault",
+            "Threshold Simulation",
+            "Shiyu Defense",
+            "Annihilation Simulacrum",
+        ],
+    }
+}
+
+fn transform_challenges(
+    deadly: Option<HyvChallengePeriod>,
+    threshold: Option<HyvThresholdData>,
+    shiyu: Option<HyvShiyuData>,
+    annihilation: Option<HyvChallengePeriod>,
+    region: &str,
+    lang: &str,
+) -> Vec<Challenge> {
+    let periods = [
+        structured_period(deadly, region),
+        structured_period(
+            threshold.and_then(|data| data.void_front_battle_abstract_info_brief),
+            region,
+        ),
+        shiyu_period(shiyu, region),
+        structured_period(annihilation, region),
+    ];
+    let names = challenge_names(lang);
+    let metadata = [
+        (1, names[0], "deadly_assault"),
+        (2, names[1], "threshold_simulation"),
+        (3, names[2], "shiyu_defense"),
+        (4, names[3], "annihilation_simulacrum"),
+    ];
+
+    metadata
+        .into_iter()
+        .zip(periods)
+        .map(|((id, name, type_name), period)| Challenge {
+            id,
+            name: name.to_string(),
+            type_name: type_name.to_string(),
+            start_time: period.start_time,
+            end_time: period.end_time,
+        })
+        .collect()
+}
+
+async fn fetch_challenge<T>(request: reqwest::RequestBuilder, challenge: &'static str) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(error = %error, challenge, "failed to fetch zenless challenge");
+            return None;
+        }
+    };
+    let response: HyvChallengeResponse<T> = match response.json().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(error = %error, challenge, "failed to parse zenless challenge response");
+            return None;
+        }
+    };
+    if response.retcode != 0 {
+        tracing::error!(retcode = response.retcode, message = %response.message, challenge, "hoyoverse zenless challenge API error");
+        return None;
+    }
+    if response.data.is_none() {
+        tracing::error!(
+            challenge,
+            "hoyoverse zenless challenge API returned no data"
+        );
+    }
+    response.data
+}
 
 fn map_profession(id: u8) -> String {
     match id {
@@ -226,6 +524,7 @@ fn transform_weapon_banner(pool: HyvWeaponGacha) -> Banner {
 fn transform_calendar(
     activity_data: HyvActivityData,
     gacha_data: HyvGachaData,
+    challenges: Vec<Challenge>,
     image_map: &HashMap<String, String>,
 ) -> CalendarResponse {
     let events = activity_data
@@ -252,7 +551,7 @@ fn transform_calendar(
     CalendarResponse {
         events,
         banners,
-        challenges: Vec::new(),
+        challenges,
     }
 }
 
@@ -335,7 +634,7 @@ pub(super) async fn get_zenless_calendar(
                     ("region", game_config.region.as_str()),
                     ("lang", lang),
                 ])
-                .header("Cookie", cookie)
+                .header("Cookie", cookie.clone())
                 .header("x-rpc-language", lang)
                 .send()
                 .await
@@ -370,6 +669,74 @@ pub(super) async fn get_zenless_calendar(
                 )
             })?;
 
+            let deadly_request = global
+                .http_client
+                .get(zenless::DEADLY_ASSAULT_API)
+                .query(&[
+                    ("uid", game_config.uid.as_str()),
+                    ("region", game_config.region.as_str()),
+                    ("schedule_type", "1"),
+                    ("lang", lang),
+                ])
+                .header("Cookie", cookie.clone())
+                .header("x-rpc-lang", lang)
+                .header("x-rpc-language", lang);
+            let threshold_request = global
+                .http_client
+                .get(zenless::THRESHOLD_SIMULATION_API)
+                .query(&[
+                    ("region", game_config.region.as_str()),
+                    ("uid", game_config.uid.as_str()),
+                    ("schedule_type", "1"),
+                    ("lang", lang),
+                ])
+                .header("Cookie", cookie.clone())
+                .header("x-rpc-lang", lang)
+                .header("x-rpc-language", lang);
+            let shiyu_request = global
+                .http_client
+                .get(zenless::SHIYU_DEFENSE_API)
+                .query(&[
+                    ("server", game_config.region.as_str()),
+                    ("role_id", game_config.uid.as_str()),
+                    ("schedule_type", "1"),
+                    ("without_v2_detail", "true"),
+                    ("lang", lang),
+                ])
+                .header("Cookie", cookie.clone())
+                .header("x-rpc-lang", lang)
+                .header("x-rpc-language", lang);
+            let annihilation_request = global
+                .http_client
+                .get(zenless::ANNIHILATION_SIMULACRUM_API)
+                .query(&[
+                    ("region", game_config.region.as_str()),
+                    ("uid", game_config.uid.as_str()),
+                    ("schedule_type", "1"),
+                    ("lang", lang),
+                ])
+                .header("Cookie", cookie)
+                .header("x-rpc-lang", lang)
+                .header("x-rpc-language", lang);
+
+            let (deadly, threshold, shiyu, annihilation) = tokio::join!(
+                fetch_challenge::<HyvChallengePeriod>(deadly_request, "deadly assault"),
+                fetch_challenge::<HyvThresholdData>(threshold_request, "threshold simulation"),
+                fetch_challenge::<HyvShiyuData>(shiyu_request, "shiyu defense"),
+                fetch_challenge::<HyvChallengePeriod>(
+                    annihilation_request,
+                    "annihilation simulacrum"
+                ),
+            );
+            let challenges = transform_challenges(
+                deadly,
+                threshold,
+                shiyu,
+                annihilation,
+                &game_config.region,
+                lang,
+            );
+
             const FANDOM_CACHE_KEY: &str = "/fandom/zenless/event-images";
             let names: Vec<String> = activity_data
                 .activity_list
@@ -395,7 +762,8 @@ pub(super) async fn get_zenless_calendar(
             let image_map: HashMap<String, String> =
                 serde_json::from_slice(&fandom_bytes).unwrap_or_default();
 
-            let calendar = transform_calendar(activity_data, gacha_data, &image_map);
+            let calendar =
+                transform_calendar(activity_data, gacha_data, challenges, &image_map);
             Ok(Bytes::from(
                 serde_json::to_vec(&calendar).expect("CalendarResponse is always serializable"),
             ))
