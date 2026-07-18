@@ -287,7 +287,11 @@ pub(super) async fn get_zenless_calendar(
             let activity_resp = global
                 .http_client
                 .get(zenless::ACTIVITY_CALENDAR_API)
-                .query(&[("uid", &game_config.uid), ("region", &game_config.region)])
+                .query(&[
+                    ("uid", game_config.uid.as_str()),
+                    ("region", game_config.region.as_str()),
+                    ("lang", lang),
+                ])
                 .header("Cookie", cookie.clone())
                 .header("x-rpc-language", lang)
                 .send()
@@ -326,7 +330,11 @@ pub(super) async fn get_zenless_calendar(
             let gacha_resp = global
                 .http_client
                 .get(zenless::GACHA_CALENDAR_API)
-                .query(&[("uid", &game_config.uid), ("region", &game_config.region)])
+                .query(&[
+                    ("uid", game_config.uid.as_str()),
+                    ("region", game_config.region.as_str()),
+                    ("lang", lang),
+                ])
                 .header("Cookie", cookie)
                 .header("x-rpc-language", lang)
                 .send()
