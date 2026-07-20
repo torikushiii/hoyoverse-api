@@ -12,7 +12,7 @@ use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
 
-use super::{LangQuery, cookie_with_lang, fetch_fandom_images, resolve_lang};
+use super::{LangQuery, cookie_with_lang, resolve_lang, try_fetch_fandom_images};
 
 #[derive(serde::Deserialize)]
 struct HyvActivityResponse {
@@ -437,6 +437,73 @@ where
     response.data
 }
 
+async fn fetch_activity_data(
+    request: reqwest::RequestBuilder,
+    request_lang: &str,
+) -> Result<HyvActivityData, ApiError> {
+    let response = request.send().await.map_err(|error| {
+        tracing::error!(error = %error, request_lang, "failed to fetch zenless activity calendar");
+        ApiError::internal_server_error(ApiErrorCode::UPSTREAM_ERROR, "failed to fetch calendar")
+    })?;
+    let response: HyvActivityResponse = response.json().await.map_err(|error| {
+        tracing::error!(error = %error, request_lang, "failed to parse zenless activity calendar response");
+        ApiError::internal_server_error(
+            ApiErrorCode::UPSTREAM_ERROR,
+            "failed to parse calendar response",
+        )
+    })?;
+
+    if response.retcode != 0 {
+        tracing::error!(retcode = response.retcode, message = %response.message, request_lang, "hoyoverse zenless activity calendar API error");
+        return Err(ApiError::internal_server_error(
+            ApiErrorCode::UPSTREAM_ERROR,
+            "calendar API returned an error",
+        ));
+    }
+
+    response.data.ok_or_else(|| {
+        ApiError::internal_server_error(
+            ApiErrorCode::UPSTREAM_ERROR,
+            "calendar API returned no data",
+        )
+    })
+}
+
+fn canonical_activities(data: &HyvActivityData) -> Vec<(u64, String)> {
+    let mut activities: Vec<_> = data
+        .activity_list
+        .iter()
+        .map(|activity| (activity.activity_id, activity.name.clone()))
+        .collect();
+    activities.sort_unstable_by_key(|(id, _)| *id);
+    activities.dedup_by_key(|(id, _)| *id);
+    activities
+}
+
+fn fandom_cache_key(activities: &[(u64, String)]) -> String {
+    let ids = activities
+        .iter()
+        .map(|(id, _)| id.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("/fandom/zenless/event-images/{ids}")
+}
+
+fn map_activity_images(
+    activities: &[(u64, String)],
+    fandom_images: &HashMap<String, String>,
+) -> HashMap<u64, String> {
+    activities
+        .iter()
+        .filter_map(|(id, name)| {
+            fandom_images
+                .get(name)
+                .cloned()
+                .map(|image_url| (*id, image_url))
+        })
+        .collect()
+}
+
 fn map_profession(id: u8) -> String {
     match id {
         1 => "Attack",
@@ -525,13 +592,13 @@ fn transform_calendar(
     activity_data: HyvActivityData,
     gacha_data: HyvGachaData,
     challenges: Vec<Challenge>,
-    image_map: &HashMap<String, String>,
+    image_map: &HashMap<u64, String>,
 ) -> CalendarResponse {
     let events = activity_data
         .activity_list
         .into_iter()
         .map(|act| {
-            let image_url = image_map.get(&act.name).cloned();
+            let image_url = image_map.get(&act.activity_id).cloned();
             transform_activity(act, image_url)
         })
         .collect();
@@ -583,7 +650,7 @@ pub(super) async fn get_zenless_calendar(
 
             let cookie = cookie_with_lang(&game_config.cookie, lang);
 
-            let activity_resp = global
+            let activity_request = global
                 .http_client
                 .get(zenless::ACTIVITY_CALENDAR_API)
                 .query(&[
@@ -592,39 +659,8 @@ pub(super) async fn get_zenless_calendar(
                     ("lang", lang),
                 ])
                 .header("Cookie", cookie.clone())
-                .header("x-rpc-language", lang)
-                .send()
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "failed to fetch zenless activity calendar");
-                    ApiError::internal_server_error(
-                        ApiErrorCode::UPSTREAM_ERROR,
-                        "failed to fetch calendar",
-                    )
-                })?;
-
-            let activity_resp: HyvActivityResponse = activity_resp.json().await.map_err(|e| {
-                tracing::error!(error = %e, "failed to parse zenless activity calendar response");
-                ApiError::internal_server_error(
-                    ApiErrorCode::UPSTREAM_ERROR,
-                    "failed to parse calendar response",
-                )
-            })?;
-
-            if activity_resp.retcode != 0 {
-                tracing::error!(retcode = activity_resp.retcode, message = %activity_resp.message, "hoyoverse zenless activity calendar API error");
-                return Err(ApiError::internal_server_error(
-                    ApiErrorCode::UPSTREAM_ERROR,
-                    "calendar API returned an error",
-                ));
-            }
-
-            let activity_data = activity_resp.data.ok_or_else(|| {
-                ApiError::internal_server_error(
-                    ApiErrorCode::UPSTREAM_ERROR,
-                    "calendar API returned no data",
-                )
-            })?;
+                .header("x-rpc-language", lang);
+            let activity_data = fetch_activity_data(activity_request, lang).await?;
 
             let gacha_resp = global
                 .http_client
@@ -737,30 +773,74 @@ pub(super) async fn get_zenless_calendar(
                 lang,
             );
 
-            const FANDOM_CACHE_KEY: &str = "/fandom/zenless/event-images";
-            let names: Vec<String> = activity_data
-                .activity_list
-                .iter()
-                .map(|a| a.name.clone())
-                .collect();
+            let canonical_activities = if lang == "en-us" {
+                canonical_activities(&activity_data)
+            } else {
+                let english_cookie = cookie_with_lang(&game_config.cookie, "en-us");
+                let english_request = global
+                    .http_client
+                    .get(zenless::ACTIVITY_CALENDAR_API)
+                    .query(&[
+                        ("uid", game_config.uid.as_str()),
+                        ("region", game_config.region.as_str()),
+                        ("lang", "en-us"),
+                    ])
+                    .header("Cookie", english_cookie)
+                    .header("x-rpc-language", "en-us");
+                match fetch_activity_data(english_request, "en-us").await {
+                    Ok(data) => canonical_activities(&data),
+                    Err(error) => {
+                        tracing::warn!(error = ?error, "failed to fetch canonical zenless activity names");
+                        Vec::new()
+                    }
+                }
+            };
 
-            let fandom_bytes = global
-                .fandom_image_cache
-                .get_or_insert(FANDOM_CACHE_KEY.to_string(), async {
-                    let map = fetch_fandom_images(
-                        &global.http_client,
-                        "https://zenless-zone-zero.fandom.com/api.php",
-                        "File:Event ",
-                        ".png",
-                        &names,
-                    )
+            let image_map = if canonical_activities.is_empty() {
+                HashMap::new()
+            } else {
+                let names: Vec<String> = canonical_activities
+                    .iter()
+                    .map(|(_, name)| name.clone())
+                    .collect();
+                let cache_key = fandom_cache_key(&canonical_activities);
+                let fandom_bytes = global
+                    .fandom_image_cache
+                    .get_or_try_insert(cache_key, async {
+                        let map = try_fetch_fandom_images(
+                            &global.http_client,
+                            "https://zenless-zone-zero.fandom.com/api.php",
+                            "File:Event ",
+                            ".png",
+                            &names,
+                        )
+                        .await
+                        .map_err(|error| {
+                            tracing::warn!(error = %error, "failed to fetch zenless fandom images");
+                            ApiError::internal_server_error(
+                                ApiErrorCode::UPSTREAM_ERROR,
+                                "failed to fetch fandom images",
+                            )
+                        })?;
+                        let bytes = serde_json::to_vec(&map).map_err(|error| {
+                            tracing::warn!(error = %error, "failed to serialize zenless fandom images");
+                            ApiError::internal_server_error(
+                                ApiErrorCode::UPSTREAM_ERROR,
+                                "failed to cache fandom images",
+                            )
+                        })?;
+                        Ok(Bytes::from(bytes))
+                    })
                     .await;
-                    Bytes::from(serde_json::to_vec(&map).unwrap_or_default())
-                })
-                .await;
-
-            let image_map: HashMap<String, String> =
-                serde_json::from_slice(&fandom_bytes).unwrap_or_default();
+                let fandom_images: HashMap<String, String> = match fandom_bytes {
+                    Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+                    Err(error) => {
+                        tracing::warn!(error = ?error, "zenless fandom images unavailable");
+                        HashMap::new()
+                    }
+                };
+                map_activity_images(&canonical_activities, &fandom_images)
+            };
 
             let calendar =
                 transform_calendar(activity_data, gacha_data, challenges, &image_map);
@@ -771,4 +851,78 @@ pub(super) async fn get_zenless_calendar(
         .await?;
 
     Ok(json_response(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn activity(id: u64, name: &str) -> HyvActivity {
+        HyvActivity {
+            activity_id: id,
+            state: "STATE_IN_PROGRESS".to_string(),
+            name: name.to_string(),
+            monochrome_cnt: 100,
+            start_ts: 1,
+            end_ts: 2,
+        }
+    }
+
+    #[test]
+    fn maps_canonical_fandom_image_to_localized_activity() {
+        let canonical = vec![(42, "English Event".to_string())];
+        let fandom_images = HashMap::from([(
+            "English Event".to_string(),
+            "https://example.com/event.png".to_string(),
+        )]);
+        let image_map = map_activity_images(&canonical, &fandom_images);
+        let event = transform_activity(
+            activity(42, "ローカライズイベント"),
+            image_map.get(&42).cloned(),
+        );
+
+        assert_eq!(event.name, "ローカライズイベント");
+        assert_eq!(
+            event.image_url.as_deref(),
+            Some("https://example.com/event.png")
+        );
+    }
+
+    #[test]
+    fn missing_canonical_activity_leaves_image_empty() {
+        let canonical = vec![(42, "English Event".to_string())];
+        let fandom_images = HashMap::from([(
+            "English Event".to_string(),
+            "https://example.com/event.png".to_string(),
+        )]);
+        let image_map = map_activity_images(&canonical, &fandom_images);
+        let event =
+            transform_activity(activity(99, "Localized Event"), image_map.get(&99).cloned());
+
+        assert!(event.image_url.is_none());
+    }
+
+    #[test]
+    fn fandom_cache_key_depends_on_sorted_activity_ids() {
+        let first = HyvActivityData {
+            activity_list: vec![activity(20, "Second"), activity(10, "First")],
+        };
+        let reordered = HyvActivityData {
+            activity_list: vec![activity(10, "First"), activity(20, "Second")],
+        };
+        let changed = HyvActivityData {
+            activity_list: vec![
+                activity(10, "First"),
+                activity(20, "Second"),
+                activity(30, "Third"),
+            ],
+        };
+
+        let first_key = fandom_cache_key(&canonical_activities(&first));
+        let reordered_key = fandom_cache_key(&canonical_activities(&reordered));
+        let changed_key = fandom_cache_key(&canonical_activities(&changed));
+
+        assert_eq!(first_key, reordered_key);
+        assert_ne!(first_key, changed_key);
+    }
 }

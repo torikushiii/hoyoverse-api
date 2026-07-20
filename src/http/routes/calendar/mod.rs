@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use axum::Router;
 use axum::routing::get;
 
@@ -112,15 +113,15 @@ struct FandomImageInfo {
     url: String,
 }
 
-async fn fetch_fandom_images(
+async fn try_fetch_fandom_images(
     client: &reqwest::Client,
     api_url: &str,
     file_prefix: &str,
     file_suffix: &str,
     names: &[String],
-) -> HashMap<String, String> {
+) -> anyhow::Result<HashMap<String, String>> {
     if names.is_empty() {
-        return HashMap::new();
+        return Ok(HashMap::new());
     }
 
     let titles: String = names
@@ -129,7 +130,7 @@ async fn fetch_fandom_images(
         .collect::<Vec<_>>()
         .join("|");
 
-    let result = client
+    let resp = client
         .get(api_url)
         .query(&[
             ("action", "query"),
@@ -139,28 +140,16 @@ async fn fetch_fandom_images(
             ("titles", &titles),
         ])
         .send()
-        .await;
+        .await
+        .context("failed to fetch fandom images")?;
 
-    let resp = match result {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!(error = %e, "failed to fetch fandom images");
-            return HashMap::new();
-        }
-    };
-
-    let fandom_resp: FandomResponse = match resp.json().await {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!(error = %e, "failed to parse fandom image response");
-            return HashMap::new();
-        }
-    };
-
-    let query = match fandom_resp.query {
-        Some(q) => q,
-        None => return HashMap::new(),
-    };
+    let fandom_resp: FandomResponse = resp
+        .json()
+        .await
+        .context("failed to parse fandom image response")?;
+    let query = fandom_resp
+        .query
+        .context("fandom image response contained no query")?;
 
     let mut map = HashMap::new();
     for page in query.pages.values() {
@@ -173,5 +162,24 @@ async fn fetch_fandom_images(
             map.insert(name.to_string(), info.url.clone());
         }
     }
-    map
+    if map.is_empty() {
+        anyhow::bail!("fandom image response contained no images");
+    }
+    Ok(map)
+}
+
+async fn fetch_fandom_images(
+    client: &reqwest::Client,
+    api_url: &str,
+    file_prefix: &str,
+    file_suffix: &str,
+    names: &[String],
+) -> HashMap<String, String> {
+    match try_fetch_fandom_images(client, api_url, file_prefix, file_suffix, names).await {
+        Ok(map) => map,
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to fetch fandom images");
+            HashMap::new()
+        }
+    }
 }
