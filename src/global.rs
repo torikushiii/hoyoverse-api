@@ -33,13 +33,6 @@ impl ResponseCache {
             .map_err(|e| (*e).clone())
     }
 
-    pub async fn get_or_insert<F>(&self, key: String, init: F) -> Bytes
-    where
-        F: Future<Output = Bytes>,
-    {
-        self.store.get_with(key, init).await
-    }
-
     pub async fn remove(&self, key: &str) {
         self.store.invalidate(key).await;
     }

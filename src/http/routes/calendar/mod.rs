@@ -167,19 +167,3 @@ async fn try_fetch_fandom_images(
     }
     Ok(map)
 }
-
-async fn fetch_fandom_images(
-    client: &reqwest::Client,
-    api_url: &str,
-    file_prefix: &str,
-    file_suffix: &str,
-    names: &[String],
-) -> HashMap<String, String> {
-    match try_fetch_fandom_images(client, api_url, file_prefix, file_suffix, names).await {
-        Ok(map) => map,
-        Err(error) => {
-            tracing::warn!(error = %error, "failed to fetch fandom images");
-            HashMap::new()
-        }
-    }
-}
