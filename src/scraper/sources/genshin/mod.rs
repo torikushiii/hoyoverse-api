@@ -11,16 +11,21 @@ use crate::global::Global;
 use crate::notifier::discord;
 use crate::validator::hoyoverse_api;
 
+use super::crimson_witch;
+
+const CRIMSON_WITCH_URL: &str = "https://www.crimsonwitch.com/codes/Genshin_Impact";
+
 pub mod fandom;
 pub mod game8;
 pub mod hoyolab;
 
 #[tracing::instrument(name = "genshin", skip_all)]
 pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
-    let (fandom_result, game8_result, hoyolab_result) = tokio::join!(
+    let (fandom_result, game8_result, hoyolab_result, crimson_witch_result) = tokio::join!(
         fandom::scrape(global),
         game8::scrape(global),
-        hoyolab::scrape(global)
+        hoyolab::scrape(global),
+        crimson_witch::scrape(&global.http_client, CRIMSON_WITCH_URL)
     );
 
     // Merge all codes from all sources, deduping by code in-memory.
@@ -58,6 +63,17 @@ pub async fn scrape_and_store(global: &Arc<Global>) -> anyhow::Result<()> {
             }
         }
         Err(e) => tracing::error!(error = %e, "hoyolab scraper failed"),
+    }
+
+    match crimson_witch_result {
+        Ok(scraped) => {
+            for p in scraped {
+                all_codes
+                    .entry(p.code)
+                    .or_insert((p.rewards, "crimson_witch"));
+            }
+        }
+        Err(e) => tracing::error!(error = %e, "crimson witch scraper failed"),
     }
 
     if all_codes.is_empty() {

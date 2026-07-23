@@ -1,3 +1,4 @@
+pub mod crimson_witch;
 pub mod genshin;
 pub mod honkai;
 pub mod starrail;
