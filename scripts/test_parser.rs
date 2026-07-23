@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 
+use hoyoverse_api::scraper::sources::crimson_witch;
 use hoyoverse_api::scraper::sources::genshin::{fandom as genshin_fandom, game8 as genshin_game8};
 use hoyoverse_api::scraper::sources::honkai::fandom as honkai_fandom;
 use hoyoverse_api::scraper::sources::starrail::{
@@ -45,6 +46,17 @@ async fn main() -> anyhow::Result<()> {
     println!("Fetching {game}/{source}...\n");
 
     let codes: Vec<Code> = match (game.as_str(), source.as_str()) {
+        ("genshin", "crimson_witch") => {
+            crimson_witch::scrape(&client, "https://www.crimsonwitch.com/codes/Genshin_Impact")
+                .await?
+                .into_iter()
+                .map(|code| Code {
+                    code: code.code,
+                    rewards: code.rewards,
+                })
+                .collect()
+        }
+
         ("genshin", "fandom") => {
             let wikitext = fetch_fandom_wikitext(
                 &client,
@@ -138,6 +150,18 @@ async fn main() -> anyhow::Result<()> {
                 })
                 .unwrap_or_default()
         }
+
+        ("starrail", "crimson_witch") => crimson_witch::scrape(
+            &client,
+            "https://www.crimsonwitch.com/codes/Honkai_Star_Rail",
+        )
+        .await?
+        .into_iter()
+        .map(|code| Code {
+            code: code.code,
+            rewards: code.rewards,
+        })
+        .collect(),
 
         ("starrail", "fandom") => {
             let wikitext = fetch_fandom_wikitext(
@@ -253,6 +277,18 @@ async fn main() -> anyhow::Result<()> {
                 })
                 .unwrap_or_default()
         }
+
+        ("zenless", "crimson_witch") => crimson_witch::scrape(
+            &client,
+            "https://www.crimsonwitch.com/codes/Zenless_Zone_Zero",
+        )
+        .await?
+        .into_iter()
+        .map(|code| Code {
+            code: code.code,
+            rewards: code.rewards,
+        })
+        .collect(),
 
         ("zenless", "fandom") => {
             let wikitext = fetch_fandom_wikitext(
@@ -461,13 +497,16 @@ fn print_results(codes: &[Code]) {
 
 fn print_known_combos() {
     eprintln!("Known combinations:");
+    eprintln!("  genshin   crimson_witch");
     eprintln!("  genshin   fandom");
     eprintln!("  genshin   game8");
     eprintln!("  genshin   hoyolab");
+    eprintln!("  starrail  crimson_witch");
     eprintln!("  starrail  fandom");
     eprintln!("  starrail  game8");
     eprintln!("  starrail  sportskeeda");
     eprintln!("  starrail  hoyolab");
+    eprintln!("  zenless   crimson_witch");
     eprintln!("  zenless   fandom");
     eprintln!("  zenless   game8");
     eprintln!("  zenless   hoyolab");
