@@ -12,7 +12,13 @@ use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
 
-use super::{LangQuery, cookie_with_lang, resolve_lang, try_fetch_fandom_images};
+use super::{FandomWiki, LangQuery, cookie_with_lang, event_image_map, resolve_lang};
+
+const FANDOM_WIKI: FandomWiki = FandomWiki {
+    game: "zenless",
+    api_url: "https://zenless-zone-zero.fandom.com/api.php",
+    file_prefix: "File:Event ",
+};
 
 #[derive(serde::Deserialize)]
 struct HyvActivityResponse {
@@ -480,30 +486,6 @@ fn canonical_activities(data: &HyvActivityData) -> Vec<(u64, String)> {
     activities
 }
 
-fn fandom_cache_key(activities: &[(u64, String)]) -> String {
-    let ids = activities
-        .iter()
-        .map(|(id, _)| id.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("/fandom/zenless/event-images/{ids}")
-}
-
-fn map_activity_images(
-    activities: &[(u64, String)],
-    fandom_images: &HashMap<String, String>,
-) -> HashMap<u64, String> {
-    activities
-        .iter()
-        .filter_map(|(id, name)| {
-            fandom_images
-                .get(name)
-                .cloned()
-                .map(|image_url| (*id, image_url))
-        })
-        .collect()
-}
-
 fn map_profession(id: u8) -> String {
     match id {
         1 => "Attack",
@@ -796,51 +778,8 @@ pub(super) async fn get_zenless_calendar(
                 }
             };
 
-            let image_map = if canonical_activities.is_empty() {
-                HashMap::new()
-            } else {
-                let names: Vec<String> = canonical_activities
-                    .iter()
-                    .map(|(_, name)| name.clone())
-                    .collect();
-                let cache_key = fandom_cache_key(&canonical_activities);
-                let fandom_bytes = global
-                    .fandom_image_cache
-                    .get_or_try_insert(cache_key, async {
-                        let map = try_fetch_fandom_images(
-                            &global.http_client,
-                            "https://zenless-zone-zero.fandom.com/api.php",
-                            "File:Event ",
-                            ".png",
-                            &names,
-                        )
-                        .await
-                        .map_err(|error| {
-                            tracing::warn!(error = %error, "failed to fetch zenless fandom images");
-                            ApiError::internal_server_error(
-                                ApiErrorCode::UPSTREAM_ERROR,
-                                "failed to fetch fandom images",
-                            )
-                        })?;
-                        let bytes = serde_json::to_vec(&map).map_err(|error| {
-                            tracing::warn!(error = %error, "failed to serialize zenless fandom images");
-                            ApiError::internal_server_error(
-                                ApiErrorCode::UPSTREAM_ERROR,
-                                "failed to cache fandom images",
-                            )
-                        })?;
-                        Ok(Bytes::from(bytes))
-                    })
-                    .await;
-                let fandom_images: HashMap<String, String> = match fandom_bytes {
-                    Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-                    Err(error) => {
-                        tracing::warn!(error = ?error, "zenless fandom images unavailable");
-                        HashMap::new()
-                    }
-                };
-                map_activity_images(&canonical_activities, &fandom_images)
-            };
+            let image_map =
+                event_image_map(&global, &FANDOM_WIKI, &canonical_activities).await;
 
             let calendar =
                 transform_calendar(activity_data, gacha_data, challenges, &image_map);
@@ -856,6 +795,7 @@ pub(super) async fn get_zenless_calendar(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::routes::calendar::{fandom_cache_key, map_activity_images};
 
     fn activity(id: u64, name: &str) -> HyvActivity {
         HyvActivity {
@@ -918,9 +858,9 @@ mod tests {
             ],
         };
 
-        let first_key = fandom_cache_key(&canonical_activities(&first));
-        let reordered_key = fandom_cache_key(&canonical_activities(&reordered));
-        let changed_key = fandom_cache_key(&canonical_activities(&changed));
+        let first_key = fandom_cache_key("zenless", &canonical_activities(&first));
+        let reordered_key = fandom_cache_key("zenless", &canonical_activities(&reordered));
+        let changed_key = fandom_cache_key("zenless", &canonical_activities(&changed));
 
         assert_eq!(first_key, reordered_key);
         assert_ne!(first_key, changed_key);

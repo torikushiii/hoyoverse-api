@@ -10,7 +10,13 @@ use crate::global::Global;
 use crate::http::error::{ApiError, ApiErrorCode};
 use crate::http::routes::json_response;
 
-use super::{LangQuery, cookie_with_lang, random_r, resolve_lang, try_fetch_fandom_images};
+use super::{FandomWiki, LangQuery, cookie_with_lang, event_image_map, random_r, resolve_lang};
+
+const FANDOM_WIKI: FandomWiki = FandomWiki {
+    game: "genshin",
+    api_url: "https://genshin-impact.fandom.com/api.php",
+    file_prefix: "File:",
+};
 
 const DS_SALT: &str = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
 
@@ -265,30 +271,6 @@ fn canonical_activities(data: &HyvCalendarData, eligible_ids: &[u64]) -> Vec<(u6
     activities
 }
 
-fn fandom_cache_key(activities: &[(u64, String)]) -> String {
-    let ids = activities
-        .iter()
-        .map(|(id, _)| id.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("/fandom/genshin/event-images/{ids}")
-}
-
-fn map_activity_images(
-    activities: &[(u64, String)],
-    fandom_images: &HashMap<String, String>,
-) -> HashMap<u64, String> {
-    activities
-        .iter()
-        .filter_map(|(id, name)| {
-            fandom_images
-                .get(name)
-                .cloned()
-                .map(|image_url| (*id, image_url))
-        })
-        .collect()
-}
-
 fn transform_calendar(data: HyvCalendarData, image_map: &HashMap<u64, String>) -> CalendarResponse {
     let events = data
         .act_list
@@ -432,51 +414,8 @@ pub(super) async fn get_genshin_calendar(
                 }
             };
 
-            let image_map = if canonical_activities.is_empty() {
-                HashMap::new()
-            } else {
-                let names: Vec<String> = canonical_activities
-                    .iter()
-                    .map(|(_, name)| name.clone())
-                    .collect();
-                let cache_key = fandom_cache_key(&canonical_activities);
-                let fandom_bytes = global
-                    .fandom_image_cache
-                    .get_or_try_insert(cache_key, async {
-                        let map = try_fetch_fandom_images(
-                            &global.http_client,
-                            "https://genshin-impact.fandom.com/api.php",
-                            "File:",
-                            ".png",
-                            &names,
-                        )
-                        .await
-                        .map_err(|error| {
-                            tracing::warn!(error = %error, "failed to fetch genshin fandom images");
-                            ApiError::internal_server_error(
-                                ApiErrorCode::UPSTREAM_ERROR,
-                                "failed to fetch fandom images",
-                            )
-                        })?;
-                        let bytes = serde_json::to_vec(&map).map_err(|error| {
-                            tracing::warn!(error = %error, "failed to serialize genshin fandom images");
-                            ApiError::internal_server_error(
-                                ApiErrorCode::UPSTREAM_ERROR,
-                                "failed to cache fandom images",
-                            )
-                        })?;
-                        Ok(Bytes::from(bytes))
-                    })
-                    .await;
-                let fandom_images: HashMap<String, String> = match fandom_bytes {
-                    Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-                    Err(error) => {
-                        tracing::warn!(error = ?error, "genshin fandom images unavailable");
-                        HashMap::new()
-                    }
-                };
-                map_activity_images(&canonical_activities, &fandom_images)
-            };
+            let image_map =
+                event_image_map(&global, &FANDOM_WIKI, &canonical_activities).await;
 
             let calendar = transform_calendar(data, &image_map);
             Ok(Bytes::from(
@@ -492,6 +431,7 @@ pub(super) async fn get_genshin_calendar(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::routes::calendar::{fandom_cache_key, map_activity_images};
 
     fn activity(id: u64, name: &str, type_name: &str) -> HyvActivity {
         HyvActivity {
@@ -571,7 +511,13 @@ mod tests {
             &[10, 20, 30],
         );
 
-        assert_eq!(fandom_cache_key(&first), fandom_cache_key(&reordered));
-        assert_ne!(fandom_cache_key(&first), fandom_cache_key(&changed));
+        assert_eq!(
+            fandom_cache_key("genshin", &first),
+            fandom_cache_key("genshin", &reordered)
+        );
+        assert_ne!(
+            fandom_cache_key("genshin", &first),
+            fandom_cache_key("genshin", &changed)
+        );
     }
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use axum::Router;
+use axum::body::Bytes;
 use axum::routing::get;
 
 use crate::global::Global;
@@ -166,4 +167,83 @@ async fn try_fetch_fandom_images(
         anyhow::bail!("fandom image response contained no images");
     }
     Ok(map)
+}
+
+struct FandomWiki {
+    game: &'static str,
+    api_url: &'static str,
+    file_prefix: &'static str,
+}
+
+fn fandom_cache_key(game: &str, activities: &[(u64, String)]) -> String {
+    let ids = activities
+        .iter()
+        .map(|(id, _)| id.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("/fandom/{game}/event-images/{ids}")
+}
+
+fn map_activity_images(
+    activities: &[(u64, String)],
+    fandom_images: &HashMap<String, String>,
+) -> HashMap<u64, String> {
+    activities
+        .iter()
+        .filter_map(|(id, name)| {
+            fandom_images
+                .get(name)
+                .cloned()
+                .map(|image_url| (*id, image_url))
+        })
+        .collect()
+}
+
+async fn event_image_map(
+    global: &Global,
+    wiki: &FandomWiki,
+    activities: &[(u64, String)],
+) -> HashMap<u64, String> {
+    if activities.is_empty() {
+        return HashMap::new();
+    }
+
+    let names: Vec<String> = activities.iter().map(|(_, name)| name.clone()).collect();
+    let fandom_bytes = global
+        .fandom_image_cache
+        .get_or_try_insert(fandom_cache_key(wiki.game, activities), async {
+            let map = try_fetch_fandom_images(
+                &global.http_client,
+                wiki.api_url,
+                wiki.file_prefix,
+                ".png",
+                &names,
+            )
+            .await
+            .map_err(|error| {
+                tracing::warn!(game = wiki.game, error = %error, "failed to fetch fandom images");
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "failed to fetch fandom images",
+                )
+            })?;
+            let bytes = serde_json::to_vec(&map).map_err(|error| {
+                tracing::warn!(game = wiki.game, error = %error, "failed to serialize fandom images");
+                ApiError::internal_server_error(
+                    ApiErrorCode::UPSTREAM_ERROR,
+                    "failed to cache fandom images",
+                )
+            })?;
+            Ok(Bytes::from(bytes))
+        })
+        .await;
+
+    let fandom_images: HashMap<String, String> = match fandom_bytes {
+        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+        Err(error) => {
+            tracing::warn!(game = wiki.game, error = ?error, "fandom images unavailable");
+            HashMap::new()
+        }
+    };
+    map_activity_images(activities, &fandom_images)
 }
