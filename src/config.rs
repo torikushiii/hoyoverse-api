@@ -240,8 +240,17 @@ impl Config {
             config.database.name = v;
         }
         if let Ok(v) = std::env::var("BIND") {
-            config.api.bind = v.parse().expect("invalid BIND address");
+            config.api.bind = v.parse().context("invalid BIND address")?;
         }
+
+        anyhow::ensure!(
+            config.scraper.interval_secs > 0,
+            "scraper.interval_secs must be greater than 0"
+        );
+        anyhow::ensure!(
+            config.validator.interval_secs > 0,
+            "validator.interval_secs must be greater than 0"
+        );
 
         Ok(config)
     }
