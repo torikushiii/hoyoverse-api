@@ -92,15 +92,7 @@ impl Global {
     }
 
     async fn ensure_indexes(db: &mongodb::Database) -> anyhow::Result<()> {
-        let games = [
-            Game::Genshin,
-            Game::Starrail,
-            Game::Zenless,
-            Game::Honkai,
-            Game::Themis,
-        ];
-
-        for game in games {
+        for game in Game::ALL {
             let collection = db.collection::<mongodb::bson::Document>(game.collection_name());
             collection
                 .create_index(

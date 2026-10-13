@@ -81,7 +81,7 @@ async fn get_codes(
     let game = Game::from_slug(&game_slug)
         .ok_or_else(|| ApiError::not_found(ApiErrorCode::UNKNOWN_GAME, "unknown game"))?;
 
-    let cache_key = format!("/mihoyo/{game_slug}/codes");
+    let cache_key = game.codes_path();
 
     let bytes = global
         .response_cache

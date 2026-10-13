@@ -41,18 +41,7 @@ struct RootResponse {
 
 #[tracing::instrument(skip(global))]
 async fn root(State(global): State<Arc<Global>>) -> Json<RootResponse> {
-    let games = [
-        Game::Genshin,
-        Game::Starrail,
-        Game::Zenless,
-        Game::Honkai,
-        Game::Themis,
-    ];
-
-    let endpoints: Vec<String> = games
-        .iter()
-        .map(|g| format!("/mihoyo/{}/codes", g.slug()))
-        .collect();
+    let endpoints: Vec<String> = Game::ALL.iter().map(Game::codes_path).collect();
 
     Json(RootResponse {
         message: "HoYoverse Redemption Code API",

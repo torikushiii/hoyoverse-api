@@ -30,15 +30,7 @@ pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {
 
 #[tracing::instrument(skip_all)]
 async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
-    let all_games = [
-        Game::Genshin,
-        Game::Starrail,
-        Game::Zenless,
-        Game::Honkai,
-        Game::Themis,
-    ];
-
-    for game in all_games {
+    for game in Game::ALL {
         let Some(game_config) = global.config.validator.game_config(game) else {
             continue; // game has no redemption API (e.g. Honkai)
         };

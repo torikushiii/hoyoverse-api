@@ -14,6 +14,18 @@ pub enum Game {
 }
 
 impl Game {
+    pub const ALL: [Self; 5] = [
+        Self::Genshin,
+        Self::Starrail,
+        Self::Zenless,
+        Self::Honkai,
+        Self::Themis,
+    ];
+
+    pub fn codes_path(&self) -> String {
+        format!("/mihoyo/{}/codes", self.slug())
+    }
+
     pub fn collection_name(&self) -> &'static str {
         match self {
             Self::Genshin => "genshin_codes",
