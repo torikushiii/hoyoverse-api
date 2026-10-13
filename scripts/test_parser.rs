@@ -474,7 +474,7 @@ fn print_results(codes: &[Code]) {
         } else {
             code.rewards.join(", ")
         };
-        println!("{:<30} {}{}", &code.code, rewards, dup_marker);
+        println!("{:<30} {}{}", code.code, rewards, dup_marker);
     }
 
     let mut seen: HashMap<String, Vec<String>> = HashMap::new();

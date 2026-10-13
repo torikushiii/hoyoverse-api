@@ -215,13 +215,9 @@ fn extract_balanced_json(value: &str, start: usize) -> Option<&str> {
         match byte {
             b'"' => in_string = true,
             b'[' | b'{' => stack.push(byte),
-            b']' => {
-                if stack.pop() != Some(b'[') {
-                    return None;
-                }
-            }
-            b'}' => {
-                if stack.pop() != Some(b'{') {
+            b']' | b'}' => {
+                let open = if byte == b']' { b'[' } else { b'{' };
+                if stack.pop() != Some(open) {
                     return None;
                 }
             }
