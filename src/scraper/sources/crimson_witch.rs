@@ -5,13 +5,9 @@ use chrono::{DateTime, Utc};
 use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, USER_AGENT};
 use serde_json::Value;
 
-const NEXT_PUSH_MARKER: &str = "self.__next_f.push(";
+use super::ParsedCode;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CrimsonCode {
-    pub code: String,
-    pub rewards: Vec<String>,
-}
+const NEXT_PUSH_MARKER: &str = "self.__next_f.push(";
 
 #[derive(serde::Deserialize)]
 struct WireCode {
@@ -32,7 +28,7 @@ struct WireReward {
     qty: Option<Value>,
 }
 
-pub async fn scrape(client: &reqwest::Client, url: &str) -> anyhow::Result<Vec<CrimsonCode>> {
+pub async fn scrape(client: &reqwest::Client, url: &str) -> anyhow::Result<Vec<ParsedCode>> {
     let html = client
         .get(url)
         .header(
@@ -57,7 +53,7 @@ pub async fn scrape(client: &reqwest::Client, url: &str) -> anyhow::Result<Vec<C
     parse_html_at(&html, Utc::now())
 }
 
-fn parse_html_at(html: &str, now: DateTime<Utc>) -> anyhow::Result<Vec<CrimsonCode>> {
+fn parse_html_at(html: &str, now: DateTime<Utc>) -> anyhow::Result<Vec<ParsedCode>> {
     let rows = extract_initial_codes(html)?;
     let mut seen = HashSet::new();
     let mut codes = Vec::new();
@@ -85,7 +81,7 @@ fn parse_html_at(html: &str, now: DateTime<Utc>) -> anyhow::Result<Vec<CrimsonCo
             if code.is_empty() || !seen.insert(code.clone()) {
                 continue;
             }
-            codes.push(CrimsonCode {
+            codes.push(ParsedCode {
                 code,
                 rewards: rewards.clone(),
             });
@@ -264,15 +260,15 @@ mod tests {
         assert_eq!(
             codes,
             vec![
-                CrimsonCode {
+                ParsedCode {
                     code: "TESTCODE".to_string(),
                     rewards: vec!["Primogem ×60".to_string(), "Mora ×10000".to_string()],
                 },
-                CrimsonCode {
+                ParsedCode {
                     code: "ALTONE".to_string(),
                     rewards: vec!["Primogem ×60".to_string(), "Mora ×10000".to_string()],
                 },
-                CrimsonCode {
+                ParsedCode {
                     code: "ALTTWO".to_string(),
                     rewards: vec!["Primogem ×60".to_string(), "Mora ×10000".to_string()],
                 },

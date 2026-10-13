@@ -4,6 +4,7 @@ use crate::global::Global;
 use crate::util::sleep_until_aligned;
 
 pub mod sources;
+pub mod store;
 
 #[tracing::instrument(name = "Scraper", skip_all)]
 pub async fn run(global: Arc<Global>) -> anyhow::Result<()> {

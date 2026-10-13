@@ -11,11 +11,7 @@ static LI_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("invalid regex")
 });
 
-#[derive(Debug)]
-pub struct ParsedCode {
-    pub code: String,
-    pub rewards: Vec<String>,
-}
+pub use crate::scraper::sources::ParsedCode;
 
 #[tracing::instrument(skip(global))]
 pub async fn scrape(global: &Arc<Global>) -> anyhow::Result<Vec<ParsedCode>> {

@@ -3,11 +3,7 @@ use anyhow::Context as _;
 use std::sync::Arc;
 const FANDOM_API: &str = "https://genshin-impact.fandom.com/api.php";
 
-#[derive(Debug)]
-pub struct ParsedCode {
-    pub code: String,
-    pub rewards: Vec<String>,
-}
+pub use crate::scraper::sources::ParsedCode;
 
 #[tracing::instrument(skip(global))]
 pub async fn scrape(global: &Arc<Global>) -> anyhow::Result<Vec<ParsedCode>> {

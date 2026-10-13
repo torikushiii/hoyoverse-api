@@ -5,11 +5,7 @@ use crate::global::Global;
 
 const FANDOM_API: &str = "https://honkaiimpact3.fandom.com/api.php";
 
-#[derive(Debug)]
-pub struct ParsedCode {
-    pub code: String,
-    pub rewards: Vec<String>,
-}
+pub use crate::scraper::sources::ParsedCode;
 
 #[tracing::instrument(skip(global))]
 pub async fn scrape(global: &Arc<Global>) -> anyhow::Result<Vec<ParsedCode>> {

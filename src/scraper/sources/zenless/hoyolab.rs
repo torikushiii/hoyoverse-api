@@ -21,11 +21,7 @@ fn icon_url_to_hash(url: &str) -> &str {
     filename.split('.').next().unwrap_or(filename)
 }
 
-#[derive(Debug)]
-pub struct ParsedCode {
-    pub code: String,
-    pub rewards: Vec<String>,
-}
+pub use crate::scraper::sources::ParsedCode;
 
 #[derive(Deserialize)]
 struct Response {
