@@ -1,10 +1,32 @@
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
+use tokio::sync::Mutex;
+use tokio::time::Instant;
 
 use crate::games::Game;
 use crate::global::Global;
+
+// Rate limit: HoYoverse enforces ~5s between redemptions
+const REDEEM_INTERVAL: Duration = Duration::from_secs(6);
+
+pub struct RedeemGate {
+    last_call: HashMap<Game, Mutex<Option<Instant>>>,
+}
+
+impl Default for RedeemGate {
+    fn default() -> Self {
+        Self {
+            last_call: Game::ALL
+                .into_iter()
+                .map(|g| (g, Mutex::new(None)))
+                .collect(),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct RedeemResponse {
@@ -73,6 +95,11 @@ pub async fn validate_code(
         .validator
         .game_config(game)
         .with_context(|| format!("{} has no redemption API", game.display_name()))?;
+
+    let mut last_call = global.redeem_gate.last_call[&game].lock().await;
+    if let Some(last) = *last_call {
+        tokio::time::sleep_until(last + REDEEM_INTERVAL).await;
+    }
     let timestamp = chrono::Utc::now().timestamp_millis().to_string();
 
     let mut params = vec![
@@ -95,7 +122,11 @@ pub async fn validate_code(
     if game == Game::Themis {
         req = req.header("Referer", crate::games::themis::REFERER);
     }
-    let resp = req.send().await?.json::<RedeemResponse>().await?;
+
+    let resp = req.send().await;
+    *last_call = Some(Instant::now());
+    drop(last_call);
+    let resp = resp?.json::<RedeemResponse>().await?;
 
     tracing::info!(
         code,

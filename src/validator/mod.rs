@@ -99,15 +99,9 @@ async fn validate_all_codes(global: &Arc<Global>) -> anyhow::Result<()> {
                         .await;
                 }
             }
-
-            // Rate limit: HoYoverse enforces ~5s between redemptions
-            tokio::time::sleep(std::time::Duration::from_secs(6)).await;
         }
 
-        global
-            .response_cache
-            .remove(&format!("/mihoyo/{}/codes", game.slug()))
-            .await;
+        global.response_cache.remove(&game.codes_path()).await;
     }
 
     Ok(())

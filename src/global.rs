@@ -11,6 +11,7 @@ use mongodb::bson::doc;
 use crate::config::Config;
 use crate::games::Game;
 use crate::http::error::ApiError;
+use crate::validator::hoyoverse_api::RedeemGate;
 
 pub struct ResponseCache {
     store: Cache<String, Bytes>,
@@ -48,6 +49,7 @@ pub struct Global {
     pub response_cache: ResponseCache,
     pub fandom_image_cache: ResponseCache,
     pub news_cache: ResponseCache,
+    pub redeem_gate: RedeemGate,
     pub discord_webhook: Option<String>,
 }
 
@@ -87,6 +89,7 @@ impl Global {
             response_cache,
             fandom_image_cache,
             news_cache,
+            redeem_gate: RedeemGate::default(),
             discord_webhook,
         }))
     }
