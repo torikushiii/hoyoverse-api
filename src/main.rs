@@ -1,16 +1,8 @@
-use global::Global;
+use anyhow::Context as _;
+use hoyoverse_api::global::Global;
+use hoyoverse_api::{config, http, scraper, validator};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
-
-mod config;
-mod database;
-mod games;
-mod global;
-mod http;
-mod notifier;
-mod scraper;
-mod util;
-mod validator;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -36,19 +28,16 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::select! {
         r = http::run(global.clone()) => {
-            if let Err(e) = r {
-                tracing::error!("http server error: {:#}", e);
-            }
+            r.context("http server error")?;
+            anyhow::bail!("http server stopped unexpectedly");
         }
         r = validator::run(global.clone()) => {
-            if let Err(e) = r {
-                tracing::error!("validator error: {:#}", e);
-            }
+            r.context("validator error")?;
+            anyhow::bail!("validator stopped unexpectedly");
         }
         r = scraper::run(global.clone()) => {
-            if let Err(e) = r {
-                tracing::error!("scraper error: {:#}", e);
-            }
+            r.context("scraper error")?;
+            anyhow::bail!("scraper stopped unexpectedly");
         }
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("shutting down");
