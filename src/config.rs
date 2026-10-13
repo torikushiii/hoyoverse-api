@@ -1,4 +1,8 @@
-use std::net::SocketAddr;
+use std::fmt;
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
+
+use anyhow::Context as _;
 
 #[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -36,6 +40,82 @@ pub struct ApiConfig {
     /// Response cache TTL in seconds
     #[default(300)]
     pub cache_ttl_secs: u64,
+
+    pub trusted_proxies: Vec<ProxyCidr>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct ProxyCidr {
+    addr: IpAddr,
+    prefix: u8,
+}
+
+impl ProxyCidr {
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        match (self.addr, ip.to_canonical()) {
+            (IpAddr::V4(net), IpAddr::V4(ip)) => {
+                let mask = u32::MAX
+                    .checked_shl(32 - u32::from(self.prefix))
+                    .unwrap_or(0);
+                u32::from(net) & mask == u32::from(ip) & mask
+            }
+            (IpAddr::V6(net), IpAddr::V6(ip)) => {
+                let mask = u128::MAX
+                    .checked_shl(128 - u32::from(self.prefix))
+                    .unwrap_or(0);
+                u128::from(net) & mask == u128::from(ip) & mask
+            }
+            _ => false,
+        }
+    }
+}
+
+impl FromStr for ProxyCidr {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> anyhow::Result<Self> {
+        let (addr, prefix) = match s.split_once('/') {
+            Some((addr, prefix)) => (addr, Some(prefix)),
+            None => (s, None),
+        };
+        let addr: IpAddr = addr
+            .trim()
+            .parse::<IpAddr>()
+            .with_context(|| format!("invalid proxy address {s:?}"))?
+            .to_canonical();
+        let max = if addr.is_ipv4() { 32 } else { 128 };
+        let prefix = match prefix {
+            Some(p) => p
+                .trim()
+                .parse::<u8>()
+                .ok()
+                .filter(|&p| p <= max)
+                .with_context(|| format!("invalid prefix length in {s:?}"))?,
+            None => max,
+        };
+        Ok(Self { addr, prefix })
+    }
+}
+
+impl TryFrom<String> for ProxyCidr {
+    type Error = anyhow::Error;
+
+    fn try_from(s: String) -> anyhow::Result<Self> {
+        s.parse()
+    }
+}
+
+impl fmt::Display for ProxyCidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.addr, self.prefix)
+    }
+}
+
+impl From<ProxyCidr> for String {
+    fn from(cidr: ProxyCidr) -> Self {
+        cidr.to_string()
+    }
 }
 
 #[derive(Debug, Clone, smart_default::SmartDefault, serde::Deserialize, serde::Serialize)]
@@ -164,5 +244,59 @@ impl Config {
         }
 
         Ok(config)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ip(s: &str) -> IpAddr {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn matches_ipv4_range() {
+        let cidr: ProxyCidr = "173.245.48.0/20".parse().unwrap();
+
+        assert!(cidr.contains(ip("173.245.48.1")));
+        assert!(cidr.contains(ip("173.245.63.255")));
+        assert!(!cidr.contains(ip("173.245.64.0")));
+        assert!(cidr.contains(ip("::ffff:173.245.48.1")));
+    }
+
+    #[test]
+    fn matches_ipv6_range() {
+        let cidr: ProxyCidr = "2400:cb00::/32".parse().unwrap();
+
+        assert!(cidr.contains(ip("2400:cb00:1::1")));
+        assert!(!cidr.contains(ip("2400:cb01::1")));
+        assert!(!cidr.contains(ip("173.245.48.1")));
+    }
+
+    #[test]
+    fn bare_address_and_zero_prefix() {
+        let single: ProxyCidr = "127.0.0.1".parse().unwrap();
+        let any: ProxyCidr = "0.0.0.0/0".parse().unwrap();
+
+        assert!(single.contains(ip("127.0.0.1")));
+        assert!(!single.contains(ip("127.0.0.2")));
+        assert!(any.contains(ip("8.8.8.8")));
+    }
+
+    #[test]
+    fn rejects_invalid_entries() {
+        assert!("10.0.0.0/33".parse::<ProxyCidr>().is_err());
+        assert!("not-an-ip".parse::<ProxyCidr>().is_err());
+        assert!("::/129".parse::<ProxyCidr>().is_err());
+    }
+
+    #[test]
+    fn deserializes_from_toml() {
+        let config: ApiConfig =
+            toml::from_str(r#"trusted_proxies = ["10.0.0.0/8", "::1"]"#).unwrap();
+
+        assert_eq!(config.trusted_proxies.len(), 2);
+        assert!(config.trusted_proxies[1].contains(ip("::1")));
     }
 }

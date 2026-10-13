@@ -25,7 +25,7 @@ pub(super) fn json_response(bytes: Bytes) -> Response<Body> {
 pub fn routes(global: &Arc<Global>) -> Router<Arc<Global>> {
     Router::new()
         .route("/", get(root))
-        .merge(codes::routes(&global.config.api.rate_limit))
+        .merge(codes::routes(&global.config.api))
         .merge(calendar::routes())
         .merge(news::routes())
         .route_layer(axum::middleware::from_fn(super::track_client))
